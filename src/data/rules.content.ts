@@ -84,12 +84,15 @@ export const CURSES: CurseDef[] = [
     rules: [rule('c-inflation', 'passive', [{ kind: 'stat', key: 'shopPriceMult', mult: 1.25 }])] },
   { id: 'fragile', name: '玻璃之躯', desc: '玩家受伤 +15%', gold: 15,
     rules: [rule('c-fragile', 'passive', [{ kind: 'stat', key: 'playerDamageTakenMult', mult: 1.15 }])] },
+  // 「下波必出 Boss」由主循环在 startWave() 里消费 pendingForcedBoss 实现；
+  // 「立即获得稀有装备」由 grantRareEquipment() 发放。这里不挂无效果的占位规则。
   { id: 'early-boss', name: '提前降临', desc: '立即获得一件稀有装备，但下波必出 Boss', gold: 18,
-    rules: [rule('c-earlyboss', 'passive', [{ kind: 'stat', key: 'deployCap', add: 0 }])] },
+    rules: [] },
 ];
 
 export const WEATHER_RULES: Record<Exclude<WeatherId, 'clear'>, Rule[]> = {
-  night: [rule('w-night', 'passive', [{ kind: 'stat', key: 'moveSpeed', mult: 1.0 }])],
+  // 夜晚的「视野缩小」由 renderer 的径向遮罩 + Arena.visionRadius 实现，不需要数值规则。
+  night: [],
   rain: [rule('w-rain-lightning', 'onHit', [{ kind: 'dmgMult', v: 1.3 }],
     { kind: 'opElement', element: 'lightning' }, 'mult', 140)],
   fire: [rule('w-fire', 'onWaveStart', [{ kind: 'spawn', what: 'firePatch', n: 3 }],

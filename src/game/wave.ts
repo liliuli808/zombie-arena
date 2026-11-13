@@ -17,8 +17,8 @@ export function WEATHER_FOR_WAVE(wave: number, rng: RNG): WeatherId {
   return WEATHERS[rng.int(1, WEATHERS.length - 1)];
 }
 
-export function previewFor(wave: number, rng: RNG): string[] {
-  if (isBossWave(wave)) return ['boss'];
+export function previewFor(wave: number, rng: RNG, forceBoss = false): string[] {
+  if (isBossWave(wave) || forceBoss) return ['boss'];
   const unlocked = Object.entries(NORMAL_BY_WAVE)
     .filter(([, min]) => min <= Math.max(2, Math.min(7, Math.ceil(wave / 2))))
     .map(([id]) => id);
@@ -27,15 +27,15 @@ export function previewFor(wave: number, rng: RNG): string[] {
   return ['walker', ...picks];
 }
 
-export function composeWave(wave: number, rng: RNG): WavePlan {
+export function composeWave(wave: number, rng: RNG, forceBoss = false, planned?: string[]): WavePlan {
   const hpScale = waveHpScale(wave);
-  if (isBossWave(wave)) {
+  if (isBossWave(wave) || forceBoss) {
     const boss = (Math.floor(wave / 5) % 2 === 1) ? 'butcher' : 'mother';
     const escorts = rng.shuffle(['walker', 'runner', 'fatty']).slice(0, 2);
     return { boss, hpScale,
       groups: escorts.map(id => ({ id, count: 3 + Math.floor(wave / 3) })) };
   }
-  const preview = previewFor(wave, rng);
+  const preview = planned ?? previewFor(wave, rng);
   const total = 5 + wave * 2;
   const groups: WaveGroup[] = preview.map((id, i) => ({
     id, count: Math.max(1, Math.round(total * (i === 0 ? 0.5 : 0.5 / (preview.length - 1)))),

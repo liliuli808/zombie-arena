@@ -16,7 +16,7 @@ export class World {
   engine: RuleEngine;
   sink: EffectSink;
   logs: string[] = [];
-  spawned: { what: string; n: number }[] = [];
+  spawned: { what: string; n: number; x?: number; y?: number; hostile?: boolean }[] = [];
   floating: { x: number; y: number; text: string; time: number }[] = [];
 
   constructor(public run: RunState, public bus: EventBus) {
@@ -82,7 +82,7 @@ export function dealDamage(w: World, target: Entity, op: DamageOp, frontFacing =
       const s: StatusId = op.element === 'fire' ? 'burn' : op.element === 'ice' ? 'chill' : 'shock';
       w.addStatus(target, s, 1);
       const reaction = elementReaction(target, s);
-      if (reaction === 'chain') w.spawned.push({ what: 'arc', n: 1 });
+      if (reaction === 'chain') w.spawned.push({ what: 'arc', n: 1, x: target.x, y: target.y, hostile: false });
     }
     if (target.hp <= 0) {
       target.dead = true;
@@ -91,7 +91,8 @@ export function dealDamage(w: World, target: Entity, op: DamageOp, frontFacing =
       if (def) {
         w.run.gold += def.gold; w.run.totalGoldEarned += def.gold;
         if (def.boss) w.run.bossKills += 1;
-        if (target.tags.includes('explodes')) w.spawned.push({ what: 'explosion', n: 1 });
+        // 胖子死亡爆炸惩罚贴脸近战：对玩家有伤害；玩家自己的手雷/连锁电弧不伤己。
+        if (target.tags.includes('explodes')) w.spawned.push({ what: 'explosion', n: 1, x: target.x, y: target.y, hostile: true });
       }
       const byMelee = op.tags.includes('melee') || op.tags.includes('heavy');
       w.bus.emit('onKill', { ctx, byMelee });
