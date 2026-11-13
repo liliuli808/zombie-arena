@@ -1576,7 +1576,7 @@ describe('buyItem', () => {
     r.shop.items = [{ id: 'boots', kind: 'passive', price: 3, locked: false },
                     { id: 'medkit', kind: 'consumable', price: 3, locked: false }];
     expect(buyItem(r, 0)).toBe('passive'); expect(r.passives).toEqual(['boots']);
-    expect(buyItem(r, 1)).toBe('consumable'); expect(r.consumables['medkit']).toBe(1);
+    expect(buyItem(r, 0)).toBe('consumable'); expect(r.consumables['medkit']).toBe(1);
   });
   it('respects insufficient gold and shop price multiplier from curses', () => {
     const r = run(); r.curses = ['inflation']; r.gold = 3;
@@ -2343,6 +2343,7 @@ export class Arena {
     this.weather = w;
     this.safeRadius = 460; this.visionRadius = w === 'night' ? 220 : 960;
     this.fires = [];
+    this.time = 0; // 每波重新计时，否则毒雾缩圈会跨波累积
     if (w === 'fire') this.fires = fireSpread(this);
   }
   tick(dt: number): void {
