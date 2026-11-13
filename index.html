@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>僵尸竞技场</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: #0d0f14; color: #e8e6df;
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace; overflow: hidden; }
+    #app { position: relative; width: 960px; height: 640px; margin: 0 auto; }
+    canvas { display: block; image-rendering: pixelated; background: #161a22; }
+    #overlay { position: absolute; inset: 0; pointer-events: none; }
+    #overlay > * { pointer-events: auto; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <canvas id="game" width="960" height="640"></canvas>
+    <div id="overlay"></div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
