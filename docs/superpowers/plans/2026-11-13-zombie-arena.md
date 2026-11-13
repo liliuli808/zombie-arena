@@ -134,10 +134,15 @@ export default defineConfig({ test: { environment: 'node', include: ['src/**/*.t
 </html>
 ```
 
-`src/main.ts`
+`src/core/constants.ts`
 ```ts
 export const GAME_W = 960;
 export const GAME_H = 640;
+```
+
+`src/main.ts`
+```ts
+export { GAME_W, GAME_H } from './core/constants';
 
 export function boot(): boolean {
   const canvas = document.getElementById('game');
@@ -150,7 +155,7 @@ export function boot(): boolean {
 `src/main.test.ts`
 ```ts
 import { describe, it, expect } from 'vitest';
-import { GAME_W, GAME_H } from './main';
+import { GAME_W, GAME_H } from './core/constants';
 
 describe('scaffold', () => {
   it('uses a single-screen 960x640 logical arena', () => {
@@ -2020,14 +2025,13 @@ git add -A && git commit -m "feat: add meta progression with versioned localStor
 ```ts
 import { describe, it, expect } from 'vitest';
 import { World, dealDamage, tickStatuses, elementReaction } from './combat';
-import { createRunState, resolveLoadout, makeCtx } from './state';
+import { createRunState, resolveLoadout } from './state';
 import { EventBus } from '../engine/events';
-import { RuleEngine } from '../engine/rules';
 import { newDamageOp, type Entity } from '../core/types';
 
-function mkEntity(id: number, tags: string[] = [], hp = 100): Entity {
-  return { id, kind: 'walker', x: 100, y: 100, radius: 12, hp, maxHp: hp,
-    speed: 40, facing: 0, tags, statuses: [], dead: false, ttl: 0, data: {} };
+function mkEntity(id: number, kind = 'walker', hp = 100): Entity {
+  return { id, kind, x: 100, y: 100, radius: 12, hp, maxHp: hp,
+    speed: 40, facing: 0, tags: [], statuses: [], dead: false, ttl: 0, data: {} };
 }
 function world() {
   const run = createRunState(3, 'veteran', 'yard');
@@ -2050,8 +2054,7 @@ describe('dealDamage pipeline', () => {
   });
   it('shield zombie negates frontal bullets but not back hits or magic', () => {
     const { w } = world();
-    const e = mkEntity(2, ['shield']); w.entities.push(e);
-    w.ruleSet.push(...require('../data/zombies').ZOMBIE_BY_ID['shield'].rules);
+    const e = mkEntity(2, 'shield'); w.entities.push(e);
     const front = newDamageOp(30, 'gun', 2, ['bullet']);
     expect(dealDamage(w, e, front, true)).toBe(0);
     const back = newDamageOp(30, 'gun', 2, ['bullet']);
@@ -2061,8 +2064,7 @@ describe('dealDamage pipeline', () => {
   });
   it('breakArmor tag bypasses the armored damage reduction', () => {
     const { w } = world();
-    const e = mkEntity(3, ['armored']); w.entities.push(e);
-    w.ruleSet.push(...require('../data/zombies').ZOMBIE_BY_ID['armored'].rules);
+    const e = mkEntity(3, 'armored'); w.entities.push(e);
     const normal = newDamageOp(100, 'gun', 3, ['bullet']);
     const broken = newDamageOp(100, 'blunt', 3, ['heavy', 'breakArmor']);
     expect(dealDamage(w, e, broken)).toBeGreaterThan(dealDamage(w, e, normal));
@@ -2238,16 +2240,10 @@ export function tickStatuses(w: World, e: Entity, dt: number): void {
 }
 ```
 
-- [ ] **Step 4: 跑测试并修正**
+- [ ] **Step 4: 跑测试确认通过**
 
 Run: `npx vitest run src/game/combat.test.ts`
-Expected: `7 passed`。把测试里两处 `require(...)` 替换为文件顶部的静态 import（ES module 无 `require`）：
-
-```ts
-import { ZOMBIE_BY_ID } from '../data/zombies';
-// 并把 w.ruleSet.push(...require('../data/zombies').ZOMBIE_BY_ID[...] ) 改为：
-// w.ruleSet.push(...ZOMBIE_BY_ID['shield'].rules);
-```
+Expected: `7 passed`。僵尸特性规则由 `dealDamage()` 通过 `ZOMBIE_BY_ID[target.kind].rules` 自动注入，测试只需把实体的 `kind` 设为 `'shield'` / `'armored'`，无需手动往 `ruleSet` 里塞规则。
 
 - [ ] **Step 5: 提交**
 
@@ -2753,7 +2749,7 @@ import type { RunState, PlayerStats, Phase, Loadout } from '../core/types';
 import type { World } from '../game/combat';
 import type { Arena } from '../game/arena';
 import { WEAPON_BY_ID } from '../data/weapons';
-import { GAME_W, GAME_H } from '../main';
+import { GAME_W, GAME_H } from '../core/constants';
 
 export interface RenderInput {
   run: RunState; world: World; arena: Arena; stats: PlayerStats;
@@ -3048,7 +3044,7 @@ import { createRunState, resolveLoadout } from './game/state';
 import { rollShop, buyItem, settleWaveEnd } from './game/economy';
 import { composeWave, previewFor, WEATHER_FOR_WAVE } from './game/wave';
 import { settleRun, defaultSave } from './game/meta';
-import { World } from './game/combat';
+import { World, dealDamage } from './game/combat';
 import { EventBus } from './engine/events';
 import { Arena } from './game/arena';
 import { newDamageOp } from './core/types';
@@ -3076,7 +3072,6 @@ describe('one full run loop', () => {
       speed: 40, facing: 0, tags: [] as string[], statuses: [], dead: false, ttl: 0,
       data: {} as Record<string, number> };
     world.entities.push(z);
-    const { dealDamage } = require('./game/combat') as typeof import('./game/combat');
     dealDamage(world, z, newDamageOp(50, 'blade', 2, ['melee']));
     expect(run.kills).toBe(1);
     const s = settleWaveEnd(run, run.wave, 0);
@@ -3089,17 +3084,10 @@ describe('one full run loop', () => {
 });
 ```
 
-把其中的 `require` 改为文件顶部静态导入：
-
-```ts
-import { World, dealDamage } from './game/combat';
-```
-并删除 `const { dealDamage } = require(...)` 那一行。
-
-- [ ] **Step 2: 跑测试确认失败（新用例需 main.ts 仍导出 boot）**
+- [ ] **Step 2: 跑测试确认通过**
 
 Run: `npm test`
-Expected: 集成用例 PASS（其余不变），若出现 `require is not defined` 则说明上一步替换未生效，先修正再继续。
+Expected: 集成用例 PASS，其余全部 PASS。
 
 - [ ] **Step 3: 用完整实现覆盖 `src/main.ts`**
 
@@ -3121,9 +3109,9 @@ import { Screens, type ScreenAction } from './ui/screens';
 import { tickResources, canFire, consumeFire, startReload, startCharge,
   releaseCharge, placeDeployable, onPlayerHit, magSize } from './engine/abilities';
 import { newDamageOp, type Entity, type RunState, type Phase, type Loadout } from './core/types';
+import { GAME_W, GAME_H } from './core/constants';
 
-export const GAME_W = 960;
-export const GAME_H = 640;
+export { GAME_W, GAME_H } from './core/constants';
 export function boot(): boolean {
   const canvas = document.getElementById('game');
   return canvas instanceof HTMLCanvasElement;
@@ -3462,22 +3450,9 @@ function loop(now: number): void {
 requestAnimationFrame(loop);
 ```
 
-> `main.ts` 顶层的 `document` 访问会在 Vitest（node 环境）导入 `render.ts` → `main.ts` 时报错。解决：`main.test.ts` 里不要从 `./main` 导入 `GAME_W`/`GAME_H` 之外的东西，并把 `GAME_W`/`GAME_H` 常量移到 `src/core/constants.ts`：
+- [ ] **Step 4: 全量验证**
 
-- [ ] **Step 4: 抽出常量，消除测试环境的 DOM 依赖**
-
-`src/core/constants.ts`
-```ts
-export const GAME_W = 960;
-export const GAME_H = 640;
-```
-`src/main.ts` 顶部改为：
-```ts
-export { GAME_W, GAME_H } from './core/constants';
-import { GAME_W, GAME_H } from './core/constants';
-```
-`src/ui/render.ts` 的 import 改为 `import { GAME_W, GAME_H } from '../core/constants';`。
-`src/main.test.ts` 顶部改为 `import { GAME_W, GAME_H } from './core/constants';`。
+`GAME_W`/`GAME_H` 从 Task 1 起就定义在 `src/core/constants.ts`，`main.ts` 只做 re-export，`render.ts` 与 `main.test.ts` 都直接引用 `core/constants.ts` —— 因此 node 测试环境导入这些模块时不会触碰 `document`。此处只需确认全链路无误：
 
 Run: `npm test`
 Expected: 全部 PASS（集成用例 + 之前所有用例）。
@@ -3524,7 +3499,7 @@ git add -A && git commit -m "feat: wire main loop, phase state machine and full 
 
 **Placeholder 扫描**：无 TBD/TODO/"稍后实现"/"类似 Task N"。所有代码步骤含完整代码块，测试含真实断言与预期输出。
 
-**类型一致性**：`Rule` / `Effect` / `Predicate` / `Ctx` / `PlayerStats` / `RunState` / `Entity` / `DamageOp` 全部在 Task 2 的 `src/core/types.ts` 一次性定义，后续任务只引用；`STAGE_ORDER`、`newDamageOp`、`finalDamage`、`defaultStats`、`newSlotResource` 全程同名；`resolveLoadout(run)` / `makeCtx(run, stats, over)` / `World.setRules(rules)` / `dealDamage(world, target, op, frontFacing?)` / `settleWaveEnd(run, wave, killGold)` / `composeWave(wave, rng)` / `WEATHER_FOR_WAVE(wave, rng)` 签名在各任务中一致。`GAME_W`/`GAME_H` 由 Task 16 的 Step 4 统一收敛到 `src/core/constants.ts`（`main.test.ts` 与 `render.ts` 同步改引用）。
+**类型一致性**：`Rule` / `Effect` / `Predicate` / `Ctx` / `PlayerStats` / `RunState` / `Entity` / `DamageOp` 全部在 Task 2 的 `src/core/types.ts` 一次性定义，后续任务只引用；`STAGE_ORDER`、`newDamageOp`、`finalDamage`、`defaultStats`、`newSlotResource` 全程同名；`resolveLoadout(run)` / `makeCtx(run, stats, over)` / `World.setRules(rules)` / `dealDamage(world, target, op, frontFacing?)` / `settleWaveEnd(run, wave, killGold)` / `composeWave(wave, rng)` / `WEATHER_FOR_WAVE(wave, rng)` 签名在各任务中一致。`GAME_W`/`GAME_H` 从 Task 1 起统一定义在 `src/core/constants.ts`，`main.ts` 仅 re-export，`main.test.ts` 与 `render.ts` 均直接引用 `core/constants.ts`（避免 node 测试环境触发 `document`）。
 
 **已知实现注意事项（非占位）**：
 - `onHit` 规则由 `dealDamage()` 独占派发，通过 `engine.dispatchFor('onHit', ctx, zombieRules)` 把目标僵尸特性规则注入同一次排序求值；`RuleEngine` 的事件订阅列表刻意不含 `onHit`，`World.setRules()` 也不合并 `extraRules`，保证每条 `onHit` 规则只生效一次。
