@@ -1307,6 +1307,7 @@ git add -A && git commit -m "feat: add set bonuses, combos, talents, curses and 
 import { describe, it, expect } from 'vitest';
 import { createRunState, resolveLoadout } from './state';
 import { WEAPON_BY_ID } from '../data/weapons';
+import { RNG } from '../engine/rng';
 
 function run() { return createRunState(42, 'veteran', 'yard'); }
 function equip(r: ReturnType<typeof run>, ids: (string | null)[], stars: (1|2|3)[] = [1,1,1]) {
@@ -1321,7 +1322,7 @@ describe('createRunState', () => {
     expect(r.wave).toBe(1); expect(r.phase).toBe('shop');
     expect(r.slots).toEqual([null, null, null]);
     expect(r.rng).toBeDefined();
-    expect(createRunState(42, 'veteran', 'yard').rng.next()).toBe(r.rng === createRunState(42, 'veteran', 'yard').rng ? expect.anything() : expect.anything());
+    expect(createRunState(42, 'veteran', 'yard').rng.next()).toBe(new RNG(42).next());
   });
 });
 
@@ -1477,15 +1478,10 @@ export function resolveLoadout(run: RunState): Loadout {
 }
 ```
 
-- [ ] **Step 4: 跑测试并修正**
+- [ ] **Step 4: 跑测试确认通过**
 
 Run: `npx vitest run src/game/state.test.ts`
-Expected: `7 passed`。若 `createRunState` 那条 `expect.anything()` 断言写得含糊导致混淆，改成下面这一句后重跑：
-
-```ts
-    expect(createRunState(42, 'veteran', 'yard').rng.next()).toBe(new RNG(42).next());
-```
-并在文件顶部补 `import { RNG } from '../engine/rng';`。
+Expected: `7 passed`。
 
 - [ ] **Step 5: 全量测试与提交**
 
