@@ -19,10 +19,10 @@ export const ZOMBIES: ZombieDef[] = [
   z({ id: 'spitter', name: '吐酸僵尸', hp: 34, speed: 46, radius: 12, sprite: 'spitter',
       behaviour: 'spitter', tags: ['poison'], rules: [
         rule('spitter-poison-hit', 'onHit', [{ kind: 'status', s: 'poison', stacks: 1 }], undefined, 'add')] }),
+  // 召唤行为由主循环的计时器实现（僵尸 def 的 rules 只会注入 onHit 求值，
+  // 挂 onWaveStart 规则永远不会被派发），所以这里保持 rules 为空。
   z({ id: 'summoner', name: '召唤者', hp: 70, speed: 34, radius: 14, sprite: 'summoner',
-      behaviour: 'summoner', elite: true, gold: 3, tags: ['priority'], rules: [
-        rule('summoner-summon', 'onWaveStart', [{ kind: 'spawn', what: 'walker', n: 2 }],
-          { kind: 'targetTag', tag: 'priority' }, 'add')] }),
+      behaviour: 'summoner', elite: true, gold: 3, tags: ['priority'] }),
   z({ id: 'armored', name: '装甲僵尸', hp: 120, speed: 32, radius: 16, sprite: 'armored',
       elite: true, gold: 3, tags: ['armored'], rules: [
         rule('armored-reduce', 'onHit', [dmgMult(0.45)],

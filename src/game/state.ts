@@ -28,6 +28,7 @@ export function makeCtx(run: RunState, stats: PlayerStats, over: Partial<Ctx> = 
   return {
     run, stats, schools, stars,
     activeStar: active?.star ?? 0, activeSlot: run.activeSlot,
+    sourceSlot: over.op?.sourceSlot ?? run.activeSlot,
     combo: active?.res.combo ?? 0, castCount: active?.res.castCount ?? 0,
     wave: run.wave, weather: run.weather, targetId: 0, target: null,
     op: newDamageOp(0, schools[run.activeSlot] ?? 'blade', 0),
@@ -63,11 +64,17 @@ function collectedRules(run: RunState): { rules: Rule[]; combos: string[];
   for (const id of run.talents) { const t = TALENTS.find(x => x.id === id); if (t) out.push(...t.rules); }
   for (const id of run.curses) { const c = CURSES.find(x => x.id === id); if (c) out.push(...c.rules); }
   for (const id of run.passives) { const p = PASSIVE_BY_ID[id]; if (p) out.push(...p.rules); }
-  for (const s of run.slots) {
+  for (let i = 0; i < run.slots.length; i++) {
+    const s = run.slots[i];
     if (!s) continue;
     const def = WEAPON_BY_ID[s.weaponId];
-    if (s.star >= 2) out.push(...(def.starRules[2] ?? []));
-    if (s.star >= 3) out.push(...(def.starRules[3] ?? []));
+    const bind = (r: Rule, star: 2 | 3): Rule => ({
+      ...r,
+      // 把 sourceSlot 谓词绑到真实格号，星级加成只对这件武器的伤害生效
+      when: { kind: 'sourceSlot', slot: i, star },
+    });
+    if (s.star >= 2) out.push(...(def.starRules[2] ?? []).map(r => bind(r, 2)));
+    if (s.star >= 3) out.push(...(def.starRules[3] ?? []).map(r => bind(r, 3)));
   }
   if (run.weather !== 'clear') out.push(...WEATHER_RULES[run.weather]);
   return { rules: out, combos, setBonuses };

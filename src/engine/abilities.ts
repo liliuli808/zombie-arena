@@ -14,7 +14,7 @@ export function tickResources(slot: EquipSlot, dt: number, stats: PlayerStats,
   bus: EventBus, run: RunState): void {
   const r = slot.res, def = WEAPON_BY_ID[slot.weaponId];
   r.cooldown = Math.max(0, r.cooldown - dt);
-  if (r.reloading > 0) { tickReload(slot, dt, def); return; }
+  if (r.reloading > 0) { tickReload(slot, dt, def, stats); return; }
   if (def.school === 'magic') r.mana = Math.min(100, r.mana + 9 * stats.manaRegenMult * dt);
   if (def.school === 'tech') r.energy = Math.min(100, r.energy + 7 * stats.energyRegenMult * dt);
   if (def.school === 'blade') r.overheat = Math.max(0, r.overheat - 22 * dt);
@@ -54,12 +54,13 @@ export function startReload(slot: EquipSlot, def: WeaponDef, stats: PlayerStats)
   if (def.school !== 'gun' || slot.res.reloading > 0) return;
   slot.res.reloading = def.reloadTime * stats.reloadMult;
 }
-export function tickReload(slot: EquipSlot, dt: number, def: WeaponDef): void {
+export function tickReload(slot: EquipSlot, dt: number, def: WeaponDef,
+  stats?: PlayerStats): void {
   if (slot.res.reloading <= 0) return;
   slot.res.reloading -= dt;
   if (slot.res.reloading <= 0) {
     slot.res.reloading = 0;
-    slot.res.ammo = def.magSize;
+    slot.res.ammo = stats ? magSize(def, stats) : def.magSize;
   }
 }
 export function startCharge(slot: EquipSlot, dt: number, stats: PlayerStats): void {
@@ -77,7 +78,10 @@ export function releaseCharge(slot: EquipSlot, stats: PlayerStats): number {
 export function placeDeployable(slot: EquipSlot, def: WeaponDef,
   stats: PlayerStats, currentCount: number): boolean {
   if (def.school !== 'tech') return false;
-  if (currentCount >= stats.deployCap || slot.res.energy < def.energyCost) return false;
+  // 每种科技武器有自己的部署上限（炮塔 2 / 电网 2 / 无人机 1），
+  // 同时受全局 deployCap 约束。
+  if (currentCount >= Math.min(stats.deployCap, def.deployLimit || stats.deployCap)
+      || slot.res.energy < def.energyCost) return false;
   slot.res.energy -= def.energyCost;
   slot.res.cooldown = 0.4;
   return true;

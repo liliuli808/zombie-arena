@@ -11,7 +11,7 @@ function ctx(schools: Ctx['schools'], weather: Ctx['weather'] = 'clear'): Ctx {
       consumables: {}, talents: [], curses: [], activeSlot: 0,
       shop: { items: [], freeRefresh: true, refreshCost: 2 }, weather,
       nextWavePreview: [], kills: 0, bossKills: 0, totalGoldEarned: 0 },
-    stats: defaultStats(), schools, stars: [1, 1, 1], activeStar: 1, activeSlot: 0,
+    stats: defaultStats(), schools, stars: [1, 1, 1], activeStar: 1, activeSlot: 0, sourceSlot: 0,
     combo: 0, castCount: 5, wave: 10, weather, targetId: 1, target: null,
     op: null, frontFacing: false,
   };

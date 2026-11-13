@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { World, dealDamage, tickStatuses, elementReaction } from './combat';
+import { ZOMBIE_BY_ID } from '../data/zombies';
 import { createRunState, resolveLoadout } from './state';
 import { EventBus } from '../engine/events';
-import { newDamageOp, type Entity } from '../core/types';
+import { newDamageOp, newSlotResource, type Entity } from '../core/types';
 
 function mkEntity(id: number, kind = 'walker', hp = 100): Entity {
   return { id, kind, x: 100, y: 100, radius: 12, hp, maxHp: hp,
@@ -62,6 +63,57 @@ describe('dealDamage pipeline', () => {
     const e = mkEntity(5); w.entities.push(e);
     const op = newDamageOp(100, 'magic', 5, ['spell']); op.element = 'lightning';
     expect(dealDamage(w, e, op)).toBe(130);
+  });
+  it('a backup star-2 weapon does not buff damage from another slot', () => {
+    const { w, run } = world();
+    run.slots[0] = { weaponId: 'pistol', star: 2, res: newSlotResource() };
+    run.slots[1] = { weaponId: 'katana', star: 1, res: newSlotResource() };
+    w.setRules(resolveLoadout(run).rules);
+    w.stats.critChance = 0; // 排除随机暴击，只看星级规则
+    const e = mkEntity(20, 'walker', 1000); w.entities.push(e);
+    // 刀（slot 1）打出伤害：备用栏的 ★2 手枪不应该 +3.5
+    const knifeHit = dealDamage(w, e, newDamageOp(10, 'blade', 20, ['melee'], 1));
+    expect(knifeHit).toBe(10);
+    // 手枪（slot 0）自己打出伤害：★2 规则生效
+    const gunHit = dealDamage(w, e, newDamageOp(10, 'gun', 20, ['bullet'], 0));
+    expect(gunHit).toBe(13.5);
+  });
+});
+
+describe('DoT kills go through the same kill accounting', () => {
+  it('burn/poison deaths award gold, kills, boss kills, explosions and onKill', () => {
+    const { w, run, bus } = world();
+    let killed = 0;
+    bus.on('onKill', () => { killed++; });
+    const e = mkEntity(10, 'fatty', 3); // 胖子死亡会爆炸
+    e.tags = ZOMBIE_BY_ID['fatty'].tags.slice();
+    w.entities.push(e);
+    e.statuses.push({ id: 'burn', stacks: 1, time: 2 });
+    tickStatuses(w, e, 1); // 3 * 1 * 1 = 3 伤害，刚好致死
+    expect(e.dead).toBe(true);
+    expect(run.kills).toBe(1);
+    expect(run.gold).toBe(15 + 1);
+    expect(killed).toBe(1);
+    expect(w.spawned.some(s => s.what === 'explosion' && s.hostile)).toBe(true);
+    tickStatuses(w, e, 1); // 已死的实体不能重复结算
+    expect(run.kills).toBe(1);
+    expect(run.gold).toBe(16);
+  });
+  it('boss killed by DoT increments bossKills and pays boss gold', () => {
+    const { w, run } = world();
+    const e = mkEntity(11, 'butcher', 2);
+    w.entities.push(e);
+    e.statuses.push({ id: 'poison', stacks: 1, time: 2 });
+    tickStatuses(w, e, 1);
+    expect(e.dead).toBe(true);
+    expect(run.bossKills).toBe(1);
+    expect(run.gold).toBe(15 + 15);
+  });
+  it('elementCapAdd lowers the reaction cap', () => {
+    const e = mkEntity(12);
+    e.statuses = [{ id: 'chill', stacks: 2, time: 2 }];
+    expect(elementReaction(e, 'chill', 1)).toBe('freeze');
+    expect(elementReaction(e, 'chill', 0)).toBeNull();
   });
 });
 

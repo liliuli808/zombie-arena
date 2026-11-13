@@ -2,6 +2,7 @@ import { WEAPONS, WEAPON_BY_ID } from '../data/weapons';
 import { PASSIVES, CONSUMABLES } from '../data/shop';
 import { CHARACTER_BY_ID } from '../data/characters';
 import { resolveLoadout } from './state';
+import { magSize } from '../engine/abilities';
 import type { RunState, ShopItem } from '../core/types';
 
 export type BuyResult = 'equipped' | 'upgraded' | 'refunded' | 'passive' | 'consumable'
@@ -84,8 +85,9 @@ export function buyItem(run: RunState, index: number, replaceSlot?: number): Buy
   const target = empty >= 0 ? empty : replaceSlot!;
   if (target < 0 || target > 2 || !WEAPON_BY_ID[item.id]) return 'invalid';
   run.gold -= price;
+  const def = WEAPON_BY_ID[item.id];
   run.slots[target] = { weaponId: item.id, star: 1, res: {
-    ammo: WEAPON_BY_ID[item.id].magSize, reloading: 0, combo: 0, charge: 0,
+    ammo: magSize(def, resolveLoadout(run).stats), reloading: 0, combo: 0, charge: 0,
     energy: 100, mana: 100, overheat: 0, castCount: 0, cooldown: 0 } };
   run.shop.items.splice(index, 1);
   return 'equipped';

@@ -11,7 +11,7 @@ function ctx(): Ctx {
       consumables: {}, talents: [], curses: [], activeSlot: 0,
       shop: { items: [], freeRefresh: true, refreshCost: 2 }, weather: 'clear',
       nextWavePreview: [], kills: 0, bossKills: 0, totalGoldEarned: 0 },
-    stats: defaultStats(), schools: ['gun'], stars: [1, 0, 0], activeStar: 1,
+    stats: defaultStats(), schools: ['gun'], stars: [1, 0, 0], activeStar: 1, sourceSlot: 0,
     activeSlot: 0, combo: 0, castCount: 0, wave: 1, weather: 'clear',
     targetId: 1, target: null, op: null, frontFacing: false,
   };

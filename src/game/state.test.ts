@@ -55,6 +55,17 @@ describe('resolveLoadout', () => {
     expect(a.stats.zombieSpeedMult).toBeCloseTo(1.2);
     expect(a.stats.moveSpeed).toBeCloseTo(190 * 1.12);
   });
+  it('binds star rules to the slot that actually produced the damage', () => {
+    const r = run(); equip(r, ['pistol', 'katana', null], [2, 1, 1]);
+    const l = resolveLoadout(r);
+    const s2 = l.rules.find(x => x.id === 'pistol-s2')!;
+    expect(s2.when).toEqual({ kind: 'sourceSlot', slot: 0, star: 2 });
+    const own = resolveLoadout(r).rules;
+    expect(own.some(x => x.id === 'pistol-s3')).toBe(false);
+    const r3 = run(); equip(r3, ['pistol', 'katana', null], [3, 1, 1]);
+    const s3 = resolveLoadout(r3).rules.find(x => x.id === 'pistol-s3')!;
+    expect(s3.when).toEqual({ kind: 'sourceSlot', slot: 0, star: 3 });
+  });
   it('includes the 5th-cast rule only for a 3-piece magic loadout', () => {
     const r = run(); equip(r, ['firestaff', 'frosttome', 'ring']);
     expect(resolveLoadout(r).rules.some(x => x.id === 'magic-nth-cast')).toBe(true);

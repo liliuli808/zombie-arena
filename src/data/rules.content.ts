@@ -23,7 +23,7 @@ export const SET_RULES: SetRule[] = [
   setRule('set-magic-2', 'magic', 2, [{ kind: 'stat', key: 'manaRegenMult', mult: 1.25 }]),
   setRule('set-magic-3', 'magic', 3, [
     { kind: 'stat', key: 'nthCastFree', set: 5 },
-    { kind: 'stat', key: 'castCritMult', set: 2 },
+    { kind: 'stat', key: 'castCritMult', set: 3 }, // 三件魔法：法术暴击 3 倍
   ]),
 ];
 

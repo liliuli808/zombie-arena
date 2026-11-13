@@ -10,7 +10,7 @@ function ctx(over: Partial<Ctx> = {}): Ctx {
       consumables: {}, talents: [], curses: [], activeSlot: 0,
       shop: { items: [], freeRefresh: true, refreshCost: 2 }, weather: 'clear',
       nextWavePreview: [], kills: 0, bossKills: 0, totalGoldEarned: 0 },
-    stats: defaultStats(), schools: ['gun', 'magic'], stars: [1, 1, 0], activeStar: 1,
+    stats: defaultStats(), schools: ['gun', 'magic'], stars: [1, 1, 0], activeStar: 1, sourceSlot: 0,
     activeSlot: 0, combo: 4, castCount: 5, wave: 3, weather: 'clear',
     targetId: 9, target: null, op: newDamageOp(10, 'gun', 9, ['bullet']), frontFacing: false, ...over,
   };
@@ -39,6 +39,16 @@ describe('evalPredicate', () => {
     expect(evalPredicate({ kind: 'opTag', tag: 'bullet' }, c)).toBe(true);
     expect(evalPredicate({ kind: 'frontFacing', v: false }, c)).toBe(true);
     expect(evalPredicate({ kind: 'minStar', min: 2 }, c)).toBe(false);
+  });
+  it('sourceSlot matches only the slot whose star produced the hit', () => {
+    const c = ctx();
+    expect(evalPredicate({ kind: 'sourceSlot', slot: 0, star: 2 }, c)).toBe(false);
+    expect(evalPredicate({ kind: 'sourceSlot', slot: 1, star: 2 }, c)).toBe(false);
+    expect(evalPredicate({ kind: 'sourceSlot', slot: 2, star: 2 }, c)).toBe(false);
+    expect(evalPredicate({ kind: 'sourceSlot', slot: 0, star: 2 },
+      ctx({ stars: [2, 0, 0] }))).toBe(true);
+    expect(evalPredicate({ kind: 'sourceSlot', slot: 0, star: 3 },
+      ctx({ stars: [2, 0, 0] }))).toBe(false);
   });
   it('returns false for op predicates when no op exists', () => {
     expect(evalPredicate({ kind: 'opTag', tag: 'bullet' }, ctx({ op: null }))).toBe(false);

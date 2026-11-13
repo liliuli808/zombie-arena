@@ -130,4 +130,15 @@ describe('main.ts boot smoke test', () => {
     click(buttons, a => a['t'] === 'continue');
     expect(overlay.innerHTML).toContain('第 2 波前');
   });
+
+  it('grants advertised character starters and keeps player maxHp in sync', async () => {
+    const { overlay, buttons } = installDom();
+    vi.resetModules();
+    await import('./main');
+    click(buttons, a => a['t'] === 'continue');
+    // 巫师：起手 ★2 火球杖
+    click(buttons, a => a['t'] === 'start' && a['characterId'] === 'wizard');
+    expect(overlay.innerHTML).toContain('★2');
+    expect(overlay.innerHTML).toContain('火球杖');
+  });
 });

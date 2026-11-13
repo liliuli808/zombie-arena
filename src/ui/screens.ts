@@ -4,6 +4,7 @@ import { CHARACTERS } from '../data/characters';
 import { MAPS } from '../data/maps';
 import { TALENTS, CURSES } from '../data/rules.content';
 import { UNLOCKS } from '../game/meta';
+import { priceOf } from '../game/economy';
 import type { RunState, SaveData, Loadout } from '../core/types';
 
 export type ScreenAction =
@@ -60,7 +61,7 @@ export class Screens {
         : it.kind === 'passive' ? PASSIVE_BY_ID[it.id]?.name : CONSUMABLE_BY_ID[it.id]?.name;
       const school = it.kind === 'weapon' ? ` [${WEAPON_BY_ID[it.id]?.school}]` : '';
       return `<div style="border:1px solid #33405a;padding:8px;margin:6px 0;max-width:620px">
-        <b>${esc(name ?? it.id)}</b>${esc(school)} — ${it.price} 金 ${it.locked ? '🔒' : ''}
+        <b>${esc(name ?? it.id)}</b>${esc(school)} — ${priceOf(run, it)} 金 ${it.locked ? '🔒' : ''}
         ${this.btn({ t: 'buy', index: i }, '购买')}
         ${this.btn({ t: 'lock', index: i }, it.locked ? '解锁' : '锁定')}</div>`;
     }).join('');

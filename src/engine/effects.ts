@@ -12,6 +12,7 @@ export function evalPredicate(p: Predicate | undefined, c: Ctx): boolean {
     case 'minStar': return c.activeStar >= p.min;
     case 'comboAtLeast': return c.combo >= p.n;
     case 'castMod': return c.castCount > 0 && c.castCount % p.n === p.rem;
+    case 'sourceSlot': return c.sourceSlot === p.slot && c.stars[p.slot] >= p.star;
     case 'waveMod': return c.wave % p.n === p.rem;
     case 'weather': return c.weather === p.id;
     case 'opTag': return c.op !== null && c.op.tags.includes(p.tag);

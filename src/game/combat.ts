@@ -47,11 +47,27 @@ export class World {
     });
   }
   newId(): number { return this.nextId++; }
-  addStatus(e: Entity | null, s: StatusId, stacks: number): void {
+  /** 唯一的击杀结算入口：子弹伤害与 DoT（灼烧/中毒）死亡都必须走这里，
+   *  否则金币、击杀数、Boss 计数、死亡爆炸、吸血回血会漏发。 */
+  kill(e: Entity, byMelee: boolean, ctx?: Ctx): void {
+    if (e.dead) return;
+    e.dead = true;
+    this.run.kills += 1;
+    const def = ZOMBIE_BY_ID[e.kind];
+    if (def) {
+      this.run.gold += def.gold; this.run.totalGoldEarned += def.gold;
+      if (def.boss) this.run.bossKills += 1;
+      if (e.tags.includes('explodes'))
+        this.spawned.push({ what: 'explosion', n: 1, x: e.x, y: e.y, hostile: true });
+    }
+    const c = ctx ?? this.ctxFor(e, null, false);
+    this.bus.emit('onKill', { ctx: c, byMelee });
+  }
+  addStatus(e: Entity | null, s: StatusId, stacks: number, time = 2): void {
     if (!e) return;
     const cur = e.statuses.find(x => x.id === s);
-    if (cur) { cur.stacks += stacks; cur.time = Math.max(cur.time, 2); }
-    else e.statuses.push({ id: s, stacks, time: 2 });
+    if (cur) { cur.stacks += stacks; cur.time = Math.max(cur.time, time); }
+    else e.statuses.push({ id: s, stacks, time });
   }
   float(x: number, y: number, text: string): void { this.floating.push({ x, y, text, time: 0.8 }); }
   sweepDead(): void { this.entities = this.entities.filter(e => !e.dead); }
@@ -73,6 +89,8 @@ export function dealDamage(w: World, target: Entity, op: DamageOp, frontFacing =
   // 暴击判定（被动规则里 critChance 由 stats 提供）
   if (!op.crit && w.run.rng.chance(w.stats.critChance)) op.crit = true;
 
+  // 三件魔法套装：施法暴击倍率（castCritMult）覆盖默认 2 倍
+  if (op.source === 'magic' && op.crit) op.critMult = w.stats.castCritMult;
   const amount = finalDamage(op);
   if (amount > 0) {
     target.hp -= amount;
@@ -81,30 +99,18 @@ export function dealDamage(w: World, target: Entity, op: DamageOp, frontFacing =
     if (op.element) {
       const s: StatusId = op.element === 'fire' ? 'burn' : op.element === 'ice' ? 'chill' : 'shock';
       w.addStatus(target, s, 1);
-      const reaction = elementReaction(target, s);
+      const reaction = elementReaction(target, s, w.stats.elementCapAdd);
       if (reaction === 'chain') w.spawned.push({ what: 'arc', n: 1, x: target.x, y: target.y, hostile: false });
     }
-    if (target.hp <= 0) {
-      target.dead = true;
-      w.run.kills += 1;
-      const def = ZOMBIE_BY_ID[target.kind];
-      if (def) {
-        w.run.gold += def.gold; w.run.totalGoldEarned += def.gold;
-        if (def.boss) w.run.bossKills += 1;
-        // 胖子死亡爆炸惩罚贴脸近战：对玩家有伤害；玩家自己的手雷/连锁电弧不伤己。
-        if (target.tags.includes('explodes')) w.spawned.push({ what: 'explosion', n: 1, x: target.x, y: target.y, hostile: true });
-      }
-      const byMelee = op.tags.includes('melee') || op.tags.includes('heavy');
-      w.bus.emit('onKill', { ctx, byMelee });
-    }
+    if (target.hp <= 0) w.kill(target, op.tags.includes('melee') || op.tags.includes('heavy'), ctx);
   }
   return amount;
 }
 
-export function elementReaction(e: Entity, s: StatusId): 'freeze' | 'chain' | null {
+export function elementReaction(e: Entity, s: StatusId, capAdd = 0): 'freeze' | 'chain' | null {
   const cur = e.statuses.find(x => x.id === s);
   if (!cur) return null;
-  const cap = 3;
+  const cap = Math.max(1, 3 - capAdd); // 元素亲和：更快叠满，触发冻结/连锁
   if (s === 'chill' && cur.stacks >= cap) {
     if (!e.statuses.some(x => x.id === 'freeze')) e.statuses.push({ id: 'freeze', stacks: 1, time: 1.2 });
     return 'freeze';
@@ -119,7 +125,11 @@ export function tickStatuses(w: World, e: Entity, dt: number): void {
     if (st.id === 'burn') { e.hp -= 3 * st.stacks * dt; w.float(e.x, e.y - 8, '·'); }
     if (st.id === 'poison') e.hp -= 2 * st.stacks * dt;
     if (st.id === 'stun' || st.id === 'freeze') e.data['cc'] = st.time;
-    if (e.hp <= 0) e.dead = true;
+    // DoT 致死也要走统一的击杀结算（金币 / 击杀数 / Boss / 胖子爆炸 / 吸血）
+    if (e.hp <= 0 && !e.dead) {
+      w.kill(e, false);
+      break;
+    }
   }
   e.statuses = e.statuses.filter(s => s.time > 0);
   if (!e.statuses.some(s => s.id === 'stun' || s.id === 'freeze')) e.data['cc'] = 0;

@@ -10,10 +10,13 @@ function w(d: Omit<WeaponDef, 'starRules' | 'fireInterval' | 'range' | 'magSize'
   return {
     fireInterval: 0.35, range: 90, magSize: 0, reloadTime: 0, chargeMax: 0,
     manaCost: 0, energyCost: 0, deployLimit: 0, element: null,
+    // 星级规则必须绑定「造成伤害的那一格」，否则备用栏的 ★2/★3 武器
+    // 会给近战、炮塔、手雷等所有伤害来源凭空加伤。
     starRules: {
-      2: [rule(`${d.id}-s2`, 'onHit', [dmgAdd(d.baseDamage * 0.25)], undefined, 'add')],
+      2: [rule(`${d.id}-s2`, 'onHit', [dmgAdd(d.baseDamage * 0.25)],
+        { kind: 'sourceSlot', slot: 0, star: 2 }, 'add')],
       3: [rule(`${d.id}-s3`, 'onHit', [dmgMult(1.25)],
-        { kind: 'minStar', min: 3 }, 'mult', 120)],
+        { kind: 'sourceSlot', slot: 0, star: 3 }, 'mult', 120)],
     },
     ...d,
   } as WeaponDef;

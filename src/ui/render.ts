@@ -37,7 +37,7 @@ export function renderFrame(ctx: CanvasRenderingContext2D, inp: RenderInput): vo
     drawSprite(ctx, e.id === 1 ? 'player' : e.kind, e.x, e.y);
     if (e.hp < e.maxHp) {
       ctx.fillStyle = '#000'; ctx.fillRect(e.x - 14, e.y - 20, 28, 3);
-      ctx.fillStyle = '#e05050'; ctx.fillRect(e.x - 14, e.y - 20, 28 * Math.max(0, e.hp / e.maxHp), 3);
+      ctx.fillStyle = '#e05050'; ctx.fillRect(e.x - 14, e.y - 20, 28 * Math.min(1, Math.max(0, e.hp / e.maxHp)), 3);
     }
   }
   ctx.font = '12px monospace'; ctx.textAlign = 'center';
@@ -69,7 +69,7 @@ function drawHud(ctx: CanvasRenderingContext2D, inp: RenderInput): void {
   ctx.fillText(`HP ${Math.ceil(run.hp)}/${stats.maxHp}`, 190, 22);
   ctx.fillText(`击杀 ${run.kills}`, 310, 22);
   ctx.fillText(`天气 ${run.weather}`, 400, 22);
-  if (phase === 'combat') ctx.fillText(`剩余 ${inp.world.entities.filter(e => !e.dead && e.id !== 1).length}`, 510, 22);
+  if (phase === 'combat') ctx.fillText(`剩余 ${inp.world.entities.filter(e => !e.dead && e.id !== 1 && !e.tags.includes('deployable')).length}`, 510, 22);
   ctx.fillStyle = '#ffe066';
   ctx.fillText(`预告: ${run.nextWavePreview.join(' / ') || '—'}`, 620, 22);
   for (let i = 0; i < 3; i++) {

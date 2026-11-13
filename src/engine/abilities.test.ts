@@ -46,6 +46,21 @@ describe('school abilities', () => {
     expect(slot.res.reloading).toBe(0);
     expect(slot.res.ammo).toBe(8);
   });
+  it('magSizeAdd from the 2-piece gun set survives a reload', () => {
+    const { slot, world } = setup('pistol');
+    world.stats.magSizeAdd = 2;
+    slot.res.ammo = 0;
+    startReload(slot, WEAPON_BY_ID['pistol'], world.stats);
+    tickReload(slot, 5, WEAPON_BY_ID['pistol'], world.stats);
+    expect(slot.res.ammo).toBe(10);
+  });
+  it('deployLimit caps per-weapon placements independently of global cap', () => {
+    const { slot, world } = setup('drone');
+    const def = WEAPON_BY_ID['drone']; // deployLimit 1
+    expect(placeDeployable(slot, def, world.stats, 0)).toBe(true);
+    slot.res.energy = 100; slot.res.cooldown = 0;
+    expect(placeDeployable(slot, def, world.stats, 1)).toBe(false);
+  });
   it('blade builds combo and blunt builds charge; charge speed scales with stats', () => {
     const { slot, world } = setup('shortknife');
     consumeFire(slot, WEAPON_BY_ID['shortknife'], world.run);

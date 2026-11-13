@@ -19,10 +19,14 @@ export interface DamageOp {
   crit: boolean; critMult: number;
   element: Element; tags: DamageTag[];
   negated: boolean; source: School; targetId: number;
+  /** 造成伤害的装备栏位；-1 表示非武器来源（炮塔 / 爆炸 / 电弧等）。
+   *  星级规则用它判断「这发伤害是不是我这件武器打出来的」。 */
+  sourceSlot: number;
 }
-export function newDamageOp(base: number, source: School, targetId: number, tags: DamageTag[] = []): DamageOp {
+export function newDamageOp(base: number, source: School, targetId: number,
+  tags: DamageTag[] = [], sourceSlot = -1): DamageOp {
   return { base, add: 0, mult: 1, crit: false, critMult: 2, element: null,
-    tags: tags.slice(), negated: false, source, targetId };
+    tags: tags.slice(), negated: false, source, targetId, sourceSlot };
 }
 export function finalDamage(op: DamageOp): number {
   return op.negated ? 0 : Math.max(0, (op.base + op.add) * op.mult * (op.crit ? op.critMult : 1));
@@ -38,6 +42,7 @@ export type Predicate =
   | { kind: 'minStar'; min: number }
   | { kind: 'comboAtLeast'; n: number }
   | { kind: 'castMod'; n: number; rem: number }
+  | { kind: 'sourceSlot'; slot: number; star: 2 | 3 }
   | { kind: 'waveMod'; n: number; rem: number }
   | { kind: 'weather'; id: WeatherId }
   | { kind: 'opTag'; tag: DamageTag }
@@ -151,6 +156,7 @@ export interface RunState {
 export interface Ctx {
   run: RunState; stats: PlayerStats;
   schools: School[]; stars: number[]; activeStar: number; activeSlot: number;
+  sourceSlot: number;
   combo: number; castCount: number; wave: number; weather: WeatherId;
   targetId: number; target: Entity | null; op: DamageOp | null; frontFacing: boolean;
 }

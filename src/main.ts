@@ -119,7 +119,7 @@ function grantRareEquipment(): void {
   const empty = run.slots.findIndex(s => s === null);
   if (empty >= 0) {
     const res = newSlotResource();
-    res.ammo = def.magSize;
+    res.ammo = magSize(def, loadout.stats);
     run.slots[empty] = { weaponId: def.id, star: 1, res };
   } else {
     run.gold += 12; // 装备栏已满时折现
@@ -133,11 +133,18 @@ function refreshLoadout(): void {
 function startRun(characterId: string, mapId: string): void {
   bus.clear();
   run = createRunState(Date.now() & 0xffffff, characterId, mapId);
+  // 角色开局奖励按 UI 描述发放
+  if (characterId === 'veteran') run.gold += 6;
+  if (characterId === 'wizard') {
+    const res = newSlotResource();
+    run.slots[0] = { weaponId: 'firestaff', star: 2, res };
+  }
   world = new World(run, bus);
   arena = new Arena(mapId);
   pendingForcedBoss = false;
   needReplace = undefined;
   playerShield = 0;
+  paused = false;
   refreshLoadout();
   setupWorld();
   run.hp = loadout.stats.maxHp;
@@ -165,8 +172,11 @@ function startWave(): void {
   if (plan.boss) spawnQueue.push(plan.boss);
   spawnQueue = run.rng.shuffle(spawnQueue);
   spawnTimer = 0;
-  world.entities = world.entities.filter(e => e.id === 1 || e.tags.includes('deployable'));
+  // 部署物每波重置：否则科技流会在无尽波次里永久累积免费炮塔大军
+  world.entities = world.entities.filter(e => e.id === 1);
   const p = ensurePlayer();
+  p.maxHp = loadout.stats.maxHp; // 天赋/被动提升 maxHp 后血条与治疗上限要同步
+  p.speed = loadout.stats.moveSpeed;
   p.hp = Math.min(loadout.stats.maxHp, Math.max(1, run.hp));
   run.hp = p.hp;
   bus.emit('onWaveStart', { ctx: makeCtx(run, loadout.stats), wave: run.wave });
@@ -232,6 +242,10 @@ function consumeSpawns(): void {
       for (let i = 0; i < s.n; i++) spawnQueue.push('walker');
     } else if (s.what === 'firePatch') {
       for (const f of fireSpread(arena)) if (arena.fires.length < 8) arena.fires.push(f);
+    } else if (s.what === 'fog') {
+      // 毒雾靠 arena.tick() 缩圈；这里只是消费掉声明式规则产生的 spawn，
+      // 保证每种 spawn 都有归属，不会被静默丢弃。
+      arena.weather = 'fog';
     } else if (s.what === 'explosion' || s.what === 'arc') {
       const radius = s.what === 'explosion' ? 90 : 150;
       const dmg = s.what === 'explosion' ? 40 : 16;
@@ -439,18 +453,21 @@ function swing(p: Entity, def: (typeof WEAPON_BY_ID)[string], power: number, hea
     const a = Math.atan2(e.y - p.y, e.x - p.x);
     if (!heavy && Math.abs(Math.atan2(Math.sin(a - p.facing), Math.cos(a - p.facing))) > 0.9) continue;
     const op = newDamageOp(def.baseDamage * power, def.school, e.id,
-      heavy ? ['heavy', 'melee', 'breakArmor'] : ['melee']);
+      heavy ? ['heavy', 'melee', 'breakArmor'] : ['melee'], run.activeSlot);
     if (heavy && loadout.stats.arcOnHeavy) op.tags.push('arc');
     const dmg = dealDamage(world, e, op, frontOf(e, p));
     if (dmg > 0 && heavy) {
       const kb = 90 * loadout.stats.knockbackMult;
       e.x += Math.cos(a) * kb * 0.3; e.y += Math.sin(a) * kb * 0.3;
-      world.addStatus(e, 'stun', 1);
+      // 蓄力越满眩晕越久；铁锤描述「蓄满眩晕 0.8s」对应约 0.9s 上限
+      world.addStatus(e, 'stun', 1, 0.35 + Math.min(1, power - 1) * 0.55);
     }
   }
 }
 function shoot(p: Entity, def: (typeof WEAPON_BY_ID)[string]): void {
   const pellets = def.id === 'shotgun' ? 5 : 1;
+  // 智能瞄准（枪 + 科技）：放宽命中锥角，实现「子弹弱追踪」
+  const aimTolerance = 0.16 + loadout.stats.bulletHoming * 0.12;
   for (let i = 0; i < pellets; i++) {
     const a = p.facing + (pellets > 1 ? (i - 2) * 0.11 : 0);
     let best: Entity | null = null, bestD = def.range;
@@ -458,7 +475,7 @@ function shoot(p: Entity, def: (typeof WEAPON_BY_ID)[string]): void {
       if (e.id === 1 || e.dead || e.tags.includes('deployable')) continue;
       const d = Math.hypot(e.x - p.x, e.y - p.y);
       const ea = Math.atan2(e.y - p.y, e.x - p.x);
-      if (d < bestD && Math.abs(Math.atan2(Math.sin(ea - a), Math.cos(ea - a))) < 0.16) { best = e; bestD = d; }
+      if (d < bestD && Math.abs(Math.atan2(Math.sin(ea - a), Math.cos(ea - a))) < aimTolerance) { best = e; bestD = d; }
     }
     const oh = aimObject(p.x, p.y, a, def.range);
     if (oh && (!best || oh.d < bestD)) {
@@ -469,7 +486,7 @@ function shoot(p: Entity, def: (typeof WEAPON_BY_ID)[string]): void {
     }
     if (!best) continue;
     const tags: ('bullet' | 'spell' | 'elemental')[] = def.school === 'gun' ? ['bullet'] : ['spell'];
-    const op = newDamageOp(def.baseDamage, def.school, best.id, tags);
+    const op = newDamageOp(def.baseDamage, def.school, best.id, tags, run.activeSlot);
     if (def.element) op.element = def.element;
     // 附魔子弹：取已装备魔法武器的元素，让子弹真的挂上灼烧/冻结/导电
     if (def.school === 'gun' && loadout.stats.enchantedBullets) {
@@ -494,7 +511,11 @@ function useConsumable(p: Entity): void {
   if (id === 'shieldkit') playerShield = 3;
 }
 
-window.addEventListener('blur', () => { paused = true; });
+window.addEventListener('blur', () => {
+  paused = true;
+  // 在窗口外松开鼠标不会触发 mouseup，不清会导致回到窗口后自动开火
+  input.mouseDown = false; input.rightDown = false; input.keys.clear();
+});
 window.addEventListener('focus', () => { paused = false; last = performance.now(); });
 
 screens.title(save);
