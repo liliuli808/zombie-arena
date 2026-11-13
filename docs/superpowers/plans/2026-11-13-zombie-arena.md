@@ -1178,11 +1178,11 @@ Expected: FAIL — 无法解析 `./rules.content`。
 - [ ] **Step 3: 实现 `src/data/rules.content.ts`**
 
 ```ts
-import { rule, type Rule, type School, type WeatherId, type TalentDef, type CurseDef } from '../core/types';
+import { rule, type Rule, type School, type WeatherId, type TalentDef, type CurseDef, type Predicate } from '../core/types';
 
-const has = (s: School, n: number) => ({ kind: 'schoolCount', school: s, min: n } as const);
-const comboWhen = (a: School, b: School) =>
-  ({ kind: 'all', of: [{ kind: 'hasSchools', schools: [a, b] }, { kind: 'always' }] } as const);
+const has = (s: School, n: number): Predicate => ({ kind: 'schoolCount', school: s, min: n });
+const comboWhen = (a: School, b: School): Predicate =>
+  ({ kind: 'all', of: [{ kind: 'hasSchools', schools: [a, b] }, { kind: 'always' }] });
 
 export interface SetRule extends Rule { school: School; tier: 2 | 3 }
 const setRule = (id: string, school: School, tier: 2 | 3, effects: Rule['effects']): SetRule => ({
@@ -1358,7 +1358,7 @@ describe('resolveLoadout', () => {
     const a = resolveLoadout(r), b = resolveLoadout(r);
     expect(a.rules.map(x => x.id)).toEqual(b.rules.map(x => x.id));
     expect(a.rules.some(x => x.id === 'w-rain-lightning')).toBe(true);
-    expect(a.stats.critChance).toBeCloseTo(0.15);
+    expect(a.stats.critChance).toBeCloseTo(0.25); // 基础 0.05 + 天赋 crit 0.10 + 被动 scope 0.10
     expect(a.stats.zombieSpeedMult).toBeCloseTo(1.2);
     expect(a.stats.moveSpeed).toBeCloseTo(190 * 1.12);
   });
