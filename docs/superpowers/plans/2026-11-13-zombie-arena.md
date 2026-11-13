@@ -501,13 +501,13 @@ function ctx(over: Partial<Ctx> = {}): Ctx {
     targetId: 9, target: null, op: null, frontFacing: false, ...over,
   };
 }
-function sink(ctxVal: Ctx): EffectSink & { healed: number; gold: number } {
+function sink(ctxVal: Ctx): EffectSink & { healed: number; earned: number } {
   const op = newDamageOp(10, 'gun', 9, ['bullet']);
   ctxVal.op = op;
   const s = makeOpSink(op);
-  return Object.assign(s, { healed: 0, gold: 0,
+  return Object.assign(s, { healed: 0, earned: 0,
     heal(v: number) { (this as { healed: number }).healed += v; },
-    gold(v: number) { (this as { gold: number }).gold += v; },
+    gold(v: number) { (this as { earned: number }).earned += v; },
   });
 }
 
