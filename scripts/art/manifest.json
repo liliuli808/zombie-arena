@@ -1,25 +1,112 @@
 {
   "style": "16-bit pixel art game sprite sheet, 2 by 2 grid of four frames of the SAME",
   "negative": "blurry, 3d render, photorealistic, multiple different characters, text, watermark, grid lines, background scenery, cropped limbs, extra limbs, front view, ceiling, floor",
-  "size": [1024, 1024],
+  "size": [
+    1024,
+    1024
+  ],
   "steps": 6,
   "guidance": 1.0,
   "hurt": "recoiling backward, staggering sideways, collapsing to its knees",
   "characters": [
-    { "id": "veteran", "subject": "battle-worn survivor in a dark blue jacket, red knit beanie, dark red scarf, dark trousers, boots, empty hands", "act": "miming a pistol aim with both hands and recoiling backward", "empty_hands": true, "seed": 1001 },
-    { "id": "wizard", "subject": "gaunt wizard in a purple hooded robe with gold trim, pointed hat, glowing eyes, empty hands", "act": "raising both hands to cast a spell, robe flaring", "empty_hands": true, "seed": 1002 },
-    { "id": "engineer", "subject": "stocky engineer in grey overalls, mustard yellow hard hat, orange tool belt, goggles, empty hands", "act": "tossing a device forward and pointing at it", "empty_hands": true, "seed": 1003 },
-    { "id": "ronin", "subject": "lean ronin in a dark red haori, straw kasa hat, white sash, dark hakama, empty hands", "act": "miming a fast diagonal sword slash with both hands", "empty_hands": true, "seed": 1004 },
-    { "id": "jailer", "subject": "broad jailer in a navy uniform, peaked cap, iron shoulder plate, chain at the belt, empty hands", "act": "miming a two-handed overhead swing", "empty_hands": true, "seed": 1005 },
-    { "id": "walker", "subject": "shambling green-skinned zombie, torn grey shirt, dark trousers, bald head", "act": "lunging forward with both arms stretched out, mouth open", "empty_hands": false, "seed": 1006 },
-    { "id": "runner", "subject": "lean sprinting zombie, ragged red shirt, exposed muscle, wild forward posture", "act": "sprinting lunge with arms swept back and mouth open", "empty_hands": false, "seed": 1007 },
-    { "id": "fatty", "subject": "bloated obese zombie, dirty white shirt, huge belly, thick limbs", "act": "belly-first charge with both arms spread wide", "empty_hands": false, "seed": 1008 },
-    { "id": "shield", "subject": "zombie riot officer, dark metal helmet, large rectangular riot shield, dark green jacket", "act": "raising the riot shield and shoving forward", "empty_hands": false, "seed": 1009 },
-    { "id": "spitter", "subject": "bloated zombie with glowing green acid sacs on throat and chest, dripping acid", "act": "hunching and spitting a stream of green acid", "empty_hands": false, "seed": 1010 },
-    { "id": "summoner", "subject": "hooded zombie sorcerer in purple robes, glowing yellow eyes, holding a skull staff", "act": "raising the skull staff overhead to summon", "empty_hands": false, "seed": 1011 },
-    { "id": "armored", "subject": "zombie SWAT officer in heavy dark plate armor, cracked visor helmet, big shoulder plates", "act": "heavy shoulder charge with both arms tucked", "empty_hands": false, "seed": 1012 },
-    { "id": "butcher", "subject": "giant butcher zombie, bloody white apron, bald scarred head, huge meat cleaver", "act": "overhead cleaver swing with both hands", "empty_hands": false, "seed": 1013 },
-    { "id": "mother", "subject": "giant pale green brood mother, bloated body with glowing pustules, four thin clawed arms", "act": "rearing up and slamming down with clawed arms", "empty_hands": false, "seed": 1014 }
+    {
+      "id": "veteran",
+      "subject": "battle-worn survivor in a dark blue jacket, red knit beanie, dark red scarf, dark trousers, boots, empty hands",
+      "act": "miming a pistol aim with both hands and recoiling backward",
+      "empty_hands": true,
+      "seed": 1001
+    },
+    {
+      "id": "wizard",
+      "subject": "gaunt wizard in a purple hooded robe with gold trim, pointed hat, glowing eyes, empty hands",
+      "act": "raising both hands to cast a spell, robe flaring",
+      "empty_hands": true,
+      "seed": 1002
+    },
+    {
+      "id": "engineer",
+      "subject": "stocky engineer in grey overalls, mustard yellow hard hat, orange tool belt, goggles, empty hands",
+      "act": "tossing a device forward and pointing at it",
+      "empty_hands": true,
+      "seed": 1003
+    },
+    {
+      "id": "ronin",
+      "subject": "lean ronin in a dark red haori, straw kasa hat, white sash, dark hakama, empty hands",
+      "act": "miming a fast diagonal sword slash with both hands",
+      "empty_hands": true,
+      "seed": 1004
+    },
+    {
+      "id": "jailer",
+      "subject": "broad jailer in a navy uniform, peaked cap, iron shoulder plate, chain at the belt, empty hands",
+      "act": "miming a two-handed overhead swing",
+      "empty_hands": true,
+      "seed": 1005
+    },
+    {
+      "id": "walker",
+      "subject": "shambling green-skinned zombie, torn grey shirt, dark trousers, bald head",
+      "act": "lunging forward with both arms stretched out, mouth open",
+      "empty_hands": false,
+      "seed": 1006
+    },
+    {
+      "id": "runner",
+      "subject": "lean sprinting zombie, ragged red shirt, exposed muscle, wild forward posture",
+      "act": "sprinting lunge with arms swept back and mouth open",
+      "empty_hands": false,
+      "seed": 1008
+    },
+    {
+      "id": "fatty",
+      "subject": "bloated obese zombie, dirty white shirt, huge belly, thick limbs",
+      "act": "belly-first charge with both arms spread wide",
+      "empty_hands": false,
+      "seed": 1008
+    },
+    {
+      "id": "shield",
+      "subject": "zombie riot officer, dark metal helmet, large rectangular riot shield, dark green jacket",
+      "act": "raising the riot shield and shoving forward",
+      "empty_hands": false,
+      "seed": 1009
+    },
+    {
+      "id": "spitter",
+      "subject": "bloated zombie with glowing green acid sacs on throat and chest, dripping acid",
+      "act": "hunching and spitting a stream of green acid",
+      "empty_hands": false,
+      "seed": 1012
+    },
+    {
+      "id": "summoner",
+      "subject": "hooded zombie sorcerer in purple robes, glowing yellow eyes, holding a skull staff",
+      "act": "raising the skull staff overhead to summon",
+      "empty_hands": false,
+      "seed": 1011
+    },
+    {
+      "id": "armored",
+      "subject": "zombie SWAT officer in heavy dark plate armor, cracked visor helmet, big shoulder plates",
+      "act": "heavy shoulder charge with both arms tucked",
+      "empty_hands": false,
+      "seed": 1012
+    },
+    {
+      "id": "butcher",
+      "subject": "giant butcher zombie, bloody white apron, bald scarred head, huge meat cleaver",
+      "act": "overhead cleaver swing with both hands",
+      "empty_hands": false,
+      "seed": 1013
+    },
+    {
+      "id": "mother",
+      "subject": "giant pale green brood mother, bloated body with glowing pustules, four thin clawed arms",
+      "act": "rearing up and slamming down with clawed arms",
+      "empty_hands": false,
+      "seed": 1014
+    }
   ],
   "extras": {
     "title": {
