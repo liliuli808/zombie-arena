@@ -7,6 +7,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 import postprocess as pp
+import validate as vv
 
 
 def make_cell_sheet(path: Path, size=(1024, 1024), color=(120, 180, 90)) -> None:
@@ -290,6 +291,25 @@ class MainTests(unittest.TestCase):
                 ])
             self.assertEqual(rc, 1)
             title.assert_called_once()
+
+
+class ValidateTests(unittest.TestCase):
+    def test_validate_sheet_accepts_processed_output(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            raw = root / "raw" / "walker"
+            raw.mkdir(parents=True)
+            for name in ("walk", "act", "hurt"):
+                make_cell_sheet(raw / f"{name}.png")
+            pp.process_character(raw.parent, "walker", root / "characters", root / "portraits")
+            vv.validate_sheet(root / "characters" / "walker.png")
+
+    def test_validate_sheet_rejects_wrong_size(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "bad.png"
+            Image.new("RGBA", (100, 48), (0, 0, 0, 0)).save(path)
+            with self.assertRaises(ValueError):
+                vv.validate_sheet(path)
 
 
 if __name__ == "__main__":
