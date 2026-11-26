@@ -67,7 +67,7 @@ class PlanTests(unittest.TestCase):
         self.assertIn("title", kinds)
         self.assertIn("icons", kinds)
 
-    def test_seed_init_wiring_and_unique_seeds(self):
+    def test_seed_init_wiring_and_unique_jobs(self):
         jobs = gr.plan_jobs(self.m, existing=set(), only={"walker"})
         chars = [j for j in jobs if j["kind"] == "character"]
         by_sheet = {j["sheet"]: j for j in chars}
@@ -81,7 +81,10 @@ class PlanTests(unittest.TestCase):
         all_jobs = gr.plan_jobs(self.m, existing=set())
         seeds = [j["seed"] for j in all_jobs]
         self.assertEqual(len(seeds), 44)
-        self.assertEqual(len(seeds), len(set(seeds)))
+        # 种子可以复用（runner/spitter 为过覆盖率校验重掷）。hurt 提示词对所有角色相同，
+        # 角色身份由 init 图决定，因此唯一性键是 (seed, prompt, init)——它能抓住整条任务被复制粘贴。
+        keys = [(j["seed"], j["prompt"], j["init"]) for j in all_jobs]
+        self.assertEqual(len(keys), len(set(keys)))
 
     def test_force_replans_everything(self):
         existing = {f"{c['id']}/{sheet}.png"
