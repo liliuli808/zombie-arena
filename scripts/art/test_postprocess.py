@@ -23,6 +23,19 @@ def make_cell_sheet(path: Path, size=(1024, 1024), color=(120, 180, 90)) -> None
     img.save(path)
 
 
+def nearest_palette_rgb(rgb: tuple[int, int, int]) -> tuple[int, int, int]:
+    """把任意 RGB 映射到调色板里最近的颜色。"""
+    diff = ((pp.PALETTE - np.array(rgb, dtype=np.int32)) ** 2).sum(axis=1)
+    return tuple(int(v) for v in pp.PALETTE[int(diff.argmin())])
+
+
+def count_body_pixels(frame: np.ndarray, rgb: tuple[int, int, int]) -> int:
+    """统计单帧中与给定身体色完全匹配的不透明像素数。"""
+    target = np.array(rgb, dtype=np.uint8)
+    return int((((frame[:, :, :3] == target).all(axis=2))
+                & (frame[:, :, 3] > 0)).sum())
+
+
 class SplitTests(unittest.TestCase):
     def test_split_cells_returns_four_512_cells(self):
         img = Image.new("RGB", (1024, 1024), (255, 255, 255))
@@ -110,23 +123,59 @@ class ProcessCharacterTests(unittest.TestCase):
     def test_process_character_writes_9_frame_sheet_and_portrait(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
+            colors = {
+                "walk": (120, 180, 90),
+                "act": (200, 80, 60),
+                "hurt": (60, 100, 200),
+            }
             raw = root / "raw" / "walker"
             raw.mkdir(parents=True)
-            for name in ("walk", "act", "hurt"):
-                make_cell_sheet(raw / f"{name}.png")
+            for name, color in colors.items():
+                make_cell_sheet(raw / f"{name}.png", color=color)
             chars = root / "characters"
             portraits = root / "portraits"
             meta = pp.process_character(raw.parent, "walker", chars, portraits)
-            sheet = Image.open(chars / "walker.png")
-            self.assertEqual(sheet.size, (432, 48))
-            arr = np.array(sheet.convert("RGBA"))
+
+            with Image.open(chars / "walker.png") as im:
+                self.assertEqual(im.size, (432, 48))
+                arr = np.array(im.convert("RGBA"))
             for i in range(9):
                 alpha = arr[:, i * 48:(i + 1) * 48, 3]
                 self.assertGreater((alpha > 0).mean(), 0.03)
+
+            walk_rgb = nearest_palette_rgb(colors["walk"])
+            act_rgb = nearest_palette_rgb(colors["act"])
+            hurt_rgb = nearest_palette_rgb(colors["hurt"])
+            expected = (
+                (range(0, 4), walk_rgb, (act_rgb, hurt_rgb)),
+                (range(4, 7), act_rgb, (walk_rgb, hurt_rgb)),
+                (range(7, 9), hurt_rgb, (walk_rgb, act_rgb)),
+            )
+            for frames, body, others in expected:
+                for i in frames:
+                    frame = arr[:, i * 48:(i + 1) * 48, :]
+                    self.assertGreater(
+                        count_body_pixels(frame, body), 100,
+                        f"frame {i} missing body color {body}")
+                    for other in others:
+                        self.assertEqual(
+                            count_body_pixels(frame, other), 0,
+                            f"frame {i} leaked color {other}")
+
             self.assertEqual(meta["id"], "walker")
             self.assertEqual(meta["frames"], 9)
             self.assertEqual(meta["clips"]["walk"], [0, 1, 2, 3])
-            self.assertEqual(Image.open(portraits / "walker.png").size, (160, 160))
+            self.assertEqual(meta["walkFps"], 8)
+
+            with Image.open(portraits / "walker.png") as im:
+                self.assertEqual(im.size, (160, 160))
+
+            raw2 = root / "raw" / "fatty"
+            raw2.mkdir(parents=True)
+            for name, color in colors.items():
+                make_cell_sheet(raw2 / f"{name}.png", color=color)
+            meta2 = pp.process_character(raw2.parent, "fatty", chars, portraits)
+            self.assertEqual(meta2["walkFps"], 6)
 
     def test_write_metadata_emits_typescript(self):
         with tempfile.TemporaryDirectory() as td:
