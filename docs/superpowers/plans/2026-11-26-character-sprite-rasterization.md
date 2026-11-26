@@ -1627,6 +1627,8 @@ git commit -m "feat(ui): raster sheet loader and clip selection
 Co-Authored-By: Claude Code <noreply@anthropic.com>"
 ```
 
+> **Post-review note:** spec review confirmed the three files match the plan byte-for-byte. Quality review added one loader success-path test (fake `Image` with a resolving `decode()`), so the raster suite is 8 tests and the project total is 143 (19 files).
+
 ---
 
 ## Task 8: 矢量回退与职业尺寸
