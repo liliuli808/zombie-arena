@@ -10,7 +10,6 @@ import base64
 import json
 import os
 import shutil
-import sys
 import time
 import urllib.error
 import urllib.request
@@ -19,14 +18,16 @@ from pathlib import Path
 BASE = "http://127.0.0.1:8888"
 KEY_PATH = "/content/studio_api_key.txt"
 CHAR_SHEETS = ("walk", "act", "hurt")
+SHEET_SEED_OFFSET = {"walk": 0, "act": 100, "hurt": 200}
 
 
 def build_walk_prompt(style: str, subject: str) -> str:
+    grid = "" if "2 by 2" in style.lower() else " 2 by 2 grid of four frames."
     return (
         f"{style} {subject}, side view facing right, full body from head to feet, "
         "dark outlines, muted palette, evenly spaced, pure white background, "
-        "no shadow, no dividing lines, no text, no labels, "
-        "2 by 2 grid of four frames."
+        "no shadow, no dividing lines, no text, no labels."
+        + grid
     )
 
 
@@ -66,7 +67,7 @@ def plan_jobs(manifest: dict, existing: set[str], only: set[str] | None = None,
                 "id": cid,
                 "sheet": sheet,
                 "prompt": prompt,
-                "seed": c["seed"] + (0 if sheet == "walk" else 100 if sheet == "act" else 200),
+                "seed": c["seed"] + SHEET_SEED_OFFSET[sheet],
                 "init": f"{cid}/walk.png" if sheet in ("act", "hurt") else None,
             })
     extras = manifest.get("extras", {})
@@ -153,25 +154,29 @@ def generate_one(job: dict, raw_dir: Path, manifest: dict) -> None:
     else:
         out = raw_dir / "extras" / f"{job['sheet']}.png"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_bytes(png)
+    tmp = out.with_name(out.name + ".tmp")
+    tmp.write_bytes(png)
+    os.replace(tmp, out)
 
 
 def write_status(path: Path, status: dict) -> None:
-    path.write_text(json.dumps(status, ensure_ascii=False, indent=2))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(status, ensure_ascii=False, indent=2))
+    os.replace(tmp, path)
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--manifest", default="/content/art/manifest.json")
     ap.add_argument("--out", default="/content/art/raw")
-    ap.add_argument("--only", nargs="*", default=None)
+    ap.add_argument("--only", nargs="+", default=None)
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args(argv)
 
     manifest = json.loads(Path(args.manifest).read_text())
     raw_dir = Path(args.out)
-    raw_dir.mkdir(parents=True, exist_ok=True)
     existing = {
         str(p.relative_to(raw_dir)) for p in raw_dir.rglob("*.png")
     }
@@ -182,14 +187,32 @@ def main(argv: list[str] | None = None) -> int:
         print(f"PLANNED {len(jobs)}", flush=True)
         return 0
 
-    ensure_loaded()
+    raw_dir.mkdir(parents=True, exist_ok=True)
     status_path = raw_dir.parent / "status.json"
+    if jobs and not Path(KEY_PATH).exists():
+        write_status(status_path, {"current": None, "total": len(jobs),
+                                   "failed": ["missing key"], "finished": True,
+                                   "error": "missing api key"})
+        print("MISSING_KEY", flush=True)
+        return 2
+    if jobs:
+        try:
+            ensure_loaded()
+        except Exception as exc:  # noqa: BLE001
+            write_status(status_path, {"current": None, "total": len(jobs),
+                                       "failed": [repr(exc)], "finished": True,
+                                       "error": repr(exc)})
+            print("LOAD_FAILED", flush=True)
+            return 1
+
     done: list[str] = []
     failed: list[str] = []
+    errors: list[str] = []
     for index, job in enumerate(jobs):
         name = f"{job['id']}/{job['sheet']}"
         write_status(status_path, {"current": name, "index": index, "total": len(jobs),
                                    "done": done, "failed": failed})
+        last_exc = None
         for attempt in range(3):
             try:
                 generate_one(job, raw_dir, manifest)
@@ -197,18 +220,18 @@ def main(argv: list[str] | None = None) -> int:
                 print("OK", name, flush=True)
                 break
             except Exception as exc:  # noqa: BLE001
+                last_exc = exc
                 print("RETRY", name, attempt + 1, repr(exc), flush=True)
-                time.sleep(3)
+                if attempt < 2:
+                    time.sleep(3)
         else:
             failed.append(name)
+            errors.append(f"{name}: {last_exc!r}")
             print("FAILED", name, flush=True)
 
-    write_status(status_path, {"current": None, "total": len(jobs),
-                               "done": done, "failed": failed, "finished": True})
-    archive = raw_dir.parent / "raw"
-    if archive.with_suffix(".zip").exists():
-        archive.with_suffix(".zip").unlink()
-    shutil.make_archive(str(archive), "zip", raw_dir)
+    write_status(status_path, {"current": None, "total": len(jobs), "done": done,
+                               "failed": failed, "errors": errors, "finished": True})
+    shutil.make_archive(str(raw_dir), "zip", raw_dir)
     print("ALL_DONE", len(done), "failed", len(failed), flush=True)
     return 1 if failed else 0
 

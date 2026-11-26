@@ -67,6 +67,34 @@ class PlanTests(unittest.TestCase):
         self.assertIn("title", kinds)
         self.assertIn("icons", kinds)
 
+    def test_seed_init_wiring_and_unique_seeds(self):
+        jobs = gr.plan_jobs(self.m, existing=set(), only={"walker"})
+        chars = [j for j in jobs if j["kind"] == "character"]
+        by_sheet = {j["sheet"]: j for j in chars}
+        base = next(c["seed"] for c in self.m["characters"] if c["id"] == "walker")
+        self.assertEqual(by_sheet["walk"]["seed"], base)
+        self.assertEqual(by_sheet["act"]["seed"], base + 100)
+        self.assertEqual(by_sheet["hurt"]["seed"], base + 200)
+        self.assertIsNone(by_sheet["walk"]["init"])
+        self.assertEqual(by_sheet["act"]["init"], "walker/walk.png")
+        self.assertEqual(by_sheet["hurt"]["init"], "walker/walk.png")
+        all_jobs = gr.plan_jobs(self.m, existing=set())
+        seeds = [j["seed"] for j in all_jobs]
+        self.assertEqual(len(seeds), 44)
+        self.assertEqual(len(seeds), len(set(seeds)))
+
+    def test_force_replans_everything(self):
+        existing = {f"{c['id']}/{sheet}.png"
+                    for c in self.m["characters"] for sheet in ("walk", "act", "hurt")}
+        existing.update({"extras/title.png", "extras/icons.png"})
+        self.assertEqual(gr.plan_jobs(self.m, existing=existing), [])
+        self.assertEqual(len(gr.plan_jobs(self.m, existing=existing, force=True)), 44)
+
+    def test_extras_skip_when_existing(self):
+        existing = {"walker/walk.png", "walker/act.png", "walker/hurt.png",
+                    "extras/title.png", "extras/icons.png"}
+        self.assertEqual(gr.plan_jobs(self.m, existing=existing, only={"walker"}), [])
+
 
 if __name__ == "__main__":
     unittest.main()
