@@ -840,7 +840,7 @@ if __name__ == "__main__":
 python3 scripts/art/test_postprocess.py -v
 ```
 
-Expected: 18 tests PASS。
+Expected: 21 tests PASS。
 
 - [ ] **Step 5: 提交**
 
@@ -850,6 +850,8 @@ git commit -m "feat(art): validate generated sheets and extras
 
 Co-Authored-By: Claude Code <noreply@anthropic.com>"
 ```
+
+> **Post-review note:** `--only` uses `nargs="+"` so a bare flag is an argparse error; non-palette errors print plain ints; size messages use `WxH`; all `Image.open` calls use context managers. Review added three tests (non-palette pixel, missing-asset exit code, `--only` scoping), bringing the suite to 21.
 
 ---
 
