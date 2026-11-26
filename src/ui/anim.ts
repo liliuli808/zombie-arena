@@ -1,4 +1,5 @@
-import { drawShapes, frameShapes, spriteDrawSize, spriteFrameCount, SPRITES } from './sprites';
+import { drawShapes, drawSprite, frameShapes, spriteDrawSize, spriteFrameCount, SPRITES, vectorIdFor } from './sprites';
+import { clipFrame, drawRasterFrame, pickClip, rasterFor } from './raster';
 import type { Entity, WeaponDef } from '../core/types';
 
 export interface PlayerAnim {
@@ -17,7 +18,8 @@ function circle(ctx: CanvasRenderingContext2D, x: number, y: number, r: number):
 
 /** 攻击动作归一化进度：1 → 0 随 atkT 衰减 */
 function atkPhase(e: Entity): number {
-  return Math.min(1, (e.data['atkT'] ?? 0) / 0.3);
+  const dur = e.data['atkDur'] ?? 0.3;
+  return Math.min(1, (e.data['atkT'] ?? 0) / Math.max(0.01, dur));
 }
 
 interface PoseOpts {
@@ -30,6 +32,7 @@ interface PoseOpts {
   hit: number;
   time: number;
   id: number;
+  atkDur: number;
 }
 
 /** 像素精灵的步态选帧：静止用第 0 帧，行走在其余帧之间交替。
@@ -45,10 +48,11 @@ function walkFrame(id: string, p: PoseOpts): number {
  *  保证像素对齐（亚像素平移会让放大后的像素边缘发虚）。 */
 function drawPosedSprite(ctx: CanvasRenderingContext2D, id: string, size: number,
   p: PoseOpts): void {
-  const sp = SPRITES[id] ?? SPRITES['walker'];
+  const vid = vectorIdFor(id);
+  const sp = SPRITES[vid] ?? SPRITES['walker'];
   const k = size / sp.view;
-  const frame = walkFrame(id, p);
-  const shapes = frameShapes(id, frame);
+  const frame = walkFrame(vid, p);
+  const shapes = frameShapes(vid, frame);
 
   // 步态起伏：只在行走时抖 1 像素，静止不抖
   const bob = p.moving ? (frame % 2 === 0 ? 0 : -1) : 0;
@@ -66,9 +70,8 @@ function drawPosedSprite(ctx: CanvasRenderingContext2D, id: string, size: number
  *  受击后仰、状态特效、无人机悬浮；玩家额外绘制手持武器与攻击特效。 */
 export function drawEntity(ctx: CanvasRenderingContext2D, e: Entity, time: number,
   player?: PlayerAnim): void {
-  const id = e.id === 1 ? 'player' : e.kind;
+  const id = e.kind;
   const atk = atkPhase(e);
-  // 攻击前扑按整像素取整，避免像素画在放大后抖动
   const lunge = atk > 0 ? Math.round(atk * 5) : 0;
   const moving = (e.data['moving'] ?? 0) > 0;
   const walk = e.data['walk'] ?? 0;
@@ -76,13 +79,26 @@ export function drawEntity(ctx: CanvasRenderingContext2D, e: Entity, time: numbe
   const hitT = e.data['hitT'] ?? 0;
   const hit = Math.min(1, hitT / 0.22);
   const size = spriteDrawSize(id);
+  const atkT = e.data['atkT'] ?? 0;
+  const atkDur = e.data['atkDur'] ?? 0.3;
 
-  ctx.save();
-  ctx.translate(Math.round(e.x + Math.cos(e.facing) * lunge), Math.round(e.y - hover));
-  // 朝左时水平翻转贴图（武器在世界坐标按朝向旋转绘制，不受影响）
-  if (Math.cos(e.facing) < 0) ctx.scale(-1, 1);
-  drawPosedSprite(ctx, id, size, { walk, moving, atk, hit, time, id: e.id });
-  ctx.restore();
+  const sheet = rasterFor(id);
+  if (sheet) {
+    const clip = pickClip({ dead: e.dead, hitT, atkT, moving });
+    const phase = clip === 'attack' ? 1 - atkT / Math.max(0.01, atkDur)
+      : clip === 'walk' ? walk : 0;
+    const frame = clipFrame(sheet, clip, phase);
+    const bob = clip === 'idle' ? (Math.sin(time * 4 + e.id) > 0 ? -1 : 0) : 0;
+    drawRasterFrame(ctx, sheet, frame,
+      e.x + Math.cos(e.facing) * lunge, e.y - hover + bob,
+      size, Math.cos(e.facing) < 0);
+  } else {
+    ctx.save();
+    ctx.translate(Math.round(e.x + Math.cos(e.facing) * lunge), Math.round(e.y - hover));
+    if (Math.cos(e.facing) < 0) ctx.scale(-1, 1);
+    drawPosedSprite(ctx, id, size, { walk, moving, atk, hit, time, id: e.id, atkDur });
+    ctx.restore();
+  }
 
   drawStatuses(ctx, e, time, id);
 
@@ -93,6 +109,24 @@ export function drawEntity(ctx: CanvasRenderingContext2D, e: Entity, time: numbe
     ctx.globalAlpha = 1;
   }
   if (player) drawPlayerWeapon(ctx, e, player, time);
+}
+
+/** 死亡特效：独立于实体列表，绘制 0.8 秒后淡出。 */
+export function drawDeath(ctx: CanvasRenderingContext2D,
+  d: { kind: string; x: number; y: number; facing: number; t: number }): void {
+  const alpha = Math.max(0, 1 - d.t / 0.8);
+  if (alpha <= 0) return;
+  const size = spriteDrawSize(d.kind);
+  const sheet = rasterFor(d.kind);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  if (sheet) {
+    const frame = sheet.clips.death[0] ?? 8;
+    drawRasterFrame(ctx, sheet, frame, d.x, d.y, size, Math.cos(d.facing) < 0);
+  } else {
+    drawSprite(ctx, vectorIdFor(d.kind), d.x, d.y, 1, 0);
+  }
+  ctx.restore();
 }
 
 // ── 状态特效 ────────────────────────────────────────────────
