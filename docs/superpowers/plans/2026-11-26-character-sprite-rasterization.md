@@ -671,7 +671,7 @@ if __name__ == "__main__":
 python3 scripts/art/test_postprocess.py -v
 ```
 
-Expected: 12 tests PASS。
+Expected: 16 tests PASS。
 
 - [ ] **Step 5: 提交**
 
@@ -681,6 +681,8 @@ git commit -m "feat(art): postprocess CLI, icons and title
 
 Co-Authored-By: Claude Code <noreply@anthropic.com>"
 ```
+
+> **Post-review note:** the final CLI isolates icons/title failures (prints `OK icons` / `OK title`), uses `--only nargs="+"`, adds flag help text, and adds four mocked `MainTests` covering the metadata guard and extras isolation. Final suite after Task 3 is 16 tests; Task 4 brings it to 18.
 
 ---
 
@@ -838,7 +840,7 @@ if __name__ == "__main__":
 python3 scripts/art/test_postprocess.py -v
 ```
 
-Expected: 14 tests PASS。
+Expected: 18 tests PASS。
 
 - [ ] **Step 5: 提交**
 
@@ -2484,7 +2486,7 @@ Expected:
 - 轮询日志出现 `walker/walk`、`walker/act`、`walker/hurt`、`extras/title`、`extras/icons`
 - 下载并解压到 `.art-cache/raw/`
 - `OK walker`
-- `OK extras`
+- `OK icons` / `OK title`
 - `validate.py` 全部 `OK`
 
 预计 2–3 分钟（两张 reference 各约 28 秒）。
