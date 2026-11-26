@@ -1292,7 +1292,7 @@ def ssh(script: str) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--only", nargs="*", default=None)
+    ap.add_argument("--only", nargs="+", default=None)
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--skip-generate", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
