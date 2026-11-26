@@ -1,6 +1,6 @@
 import { drawShapes, drawSprite, frameShapes, spriteDrawSize, spriteFrameCount, SPRITES, vectorIdFor } from './sprites';
 import { clipFrame, drawRasterFrame, pickClip, rasterFor } from './raster';
-import type { Entity, WeaponDef } from '../core/types';
+import { DEATH_LIFETIME, type Entity, type WeaponDef, type DeathRecord } from '../core/types';
 
 export interface PlayerAnim {
   weapon: WeaponDef;
@@ -112,8 +112,8 @@ export function drawEntity(ctx: CanvasRenderingContext2D, e: Entity, time: numbe
 
 /** 死亡特效：独立于实体列表，绘制 0.8 秒后淡出。 */
 export function drawDeath(ctx: CanvasRenderingContext2D,
-  d: { kind: string; x: number; y: number; facing: number; t: number }): void {
-  const alpha = Math.max(0, 1 - d.t / 0.8);
+  d: DeathRecord): void {
+  const alpha = Math.max(0, 1 - d.t / DEATH_LIFETIME);
   if (alpha <= 0) return;
   const size = spriteDrawSize(d.kind);
   const sheet = rasterFor(d.kind);

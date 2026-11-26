@@ -87,7 +87,8 @@ describe('death visuals', () => {
     w.entities.push(e);
     w.kill(e, false);
     expect(w.deaths).toHaveLength(1);
-    expect(w.deaths[0]!.kind).toBe('walker');
+    expect(e.dead).toBe(true);
+    expect(w.deaths[0]).toMatchObject({ kind: 'walker', x: e.x, y: e.y, facing: e.facing });
     w.kill(e, false);
     expect(w.deaths).toHaveLength(1);
     w.tickDeaths(0.79);
@@ -104,6 +105,8 @@ describe('death visuals', () => {
     w.entities.push(p, d);
     w.kill(p, false);
     w.kill(d, false);
+    expect(p.dead).toBe(true);
+    expect(d.dead).toBe(true);
     expect(w.deaths).toHaveLength(0);
   });
 });

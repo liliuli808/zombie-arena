@@ -172,3 +172,8 @@ export interface SaveData {
   version: 1; points: number; bestWave: number; totalKills: number;
   unlockedCharacters: string[]; unlockedMaps: string[]; unlockedWeapons: string[];
 }
+
+/** 纯视觉的倒地记录：实体被 sweepDead 移除后仍保留片刻用于淡出。 */
+export interface DeathRecord { kind: string; x: number; y: number; facing: number; t: number }
+/** 死亡淡出时长（秒）：combat 的清理阈值与 ui 的 alpha 必须一致。 */
+export const DEATH_LIFETIME = 0.8;

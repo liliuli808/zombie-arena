@@ -3,7 +3,8 @@ import { RuleEngine } from '../engine/rules';
 import { makeOpSink, type EffectSink } from '../engine/effects';
 import { finalDamage, newDamageOp,
   type RunState, type Entity, type DamageOp, type Ctx, type Rule,
-  type StatusId, type ActiveRule, type PlayerStats } from '../core/types';
+  type StatusId, type ActiveRule, type PlayerStats,
+  DEATH_LIFETIME, type DeathRecord } from '../core/types';
 import { makeCtx, resolveLoadout } from './state';
 import { ZOMBIE_BY_ID } from '../data/zombies';
 
@@ -19,7 +20,7 @@ export class World {
   spawned: { what: string; n: number; x?: number; y?: number; hostile?: boolean }[] = [];
   floating: { x: number; y: number; text: string; time: number }[] = [];
   /** 纯视觉的倒地记录：实体本体仍由 sweepDead 立即移除。 */
-  deaths: { kind: string; x: number; y: number; facing: number; t: number }[] = [];
+  deaths: DeathRecord[] = [];
 
   constructor(public run: RunState, public bus: EventBus) {
     this.stats = resolveLoadout(run).stats;
@@ -78,7 +79,7 @@ export class World {
   sweepDead(): void { this.entities = this.entities.filter(e => !e.dead); }
   tickDeaths(dt: number): void {
     for (const d of this.deaths) d.t += dt;
-    this.deaths = this.deaths.filter(d => d.t < 0.8);
+    this.deaths = this.deaths.filter(d => d.t < DEATH_LIFETIME);
   }
 }
 
