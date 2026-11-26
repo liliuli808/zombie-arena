@@ -1934,6 +1934,8 @@ git commit -m "feat(ui): raster animation clips with vector fallback
 Co-Authored-By: Claude Code <noreply@anthropic.com>"
 ```
 
+> **Post-review note:** review caught a live bug — `atkT > atkDur` (spitter 0.45, summoner 0.6 vs the default 0.3) made the attack phase negative and blanked the frame. Fixed by clamping the phase in `drawEntity`, and `clipFrame` now normalizes indices: walk uses a true non-negative modulo (preserves wrap at `phase*8 % 4`), attack clamps to `[0, len-1]`. Dead `PoseOpts.atkDur` and the hardcoded death fallback `?? 8` were removed. Suite is 150 tests / 20 files.
+
 ---
 
 ## Task 10: 玩家身份、渲染与主循环
