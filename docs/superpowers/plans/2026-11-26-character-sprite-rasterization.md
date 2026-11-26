@@ -1297,7 +1297,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     only = args.only or []
-    only_arg = " ".join(only)
+    only_arg = ("--only " + " ".join(only)) if only else ""
     force_arg = "--force" if args.force else ""
 
     upload_manifest = ["colab", "upload", "-s", SESSION,
@@ -1316,10 +1316,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"+ colab ssh -s {SESSION} -- bash -lc '{start}'")
         print("+ poll: cat /content/art/status.json every 20s")
         print("+", " ".join(download))
-        print(f"+ python3 scripts/art/postprocess.py --only {only_arg} --extras"
+        print(f"+ python3 scripts/art/postprocess.py {only_arg} --extras"
               if only else
               "+ python3 scripts/art/postprocess.py --extras")
-        print(f"+ python3 scripts/art/validate.py --only {only_arg} --extras"
+        print(f"+ python3 scripts/art/validate.py {only_arg} --extras"
               if only else
               "+ python3 scripts/art/validate.py --extras")
         return 0
@@ -1372,7 +1372,7 @@ if __name__ == "__main__":
 python3 scripts/colab_gen_art.py --dry-run --only walker
 ```
 
-Expected: 打印 upload/ssh/download/postprocess/validate 六行命令，不访问 Colab。
+Expected: 打印 upload/ssh/poll/download/postprocess/validate 七行命令，不访问 Colab。
 
 - [ ] **Step 3: 提交**
 
