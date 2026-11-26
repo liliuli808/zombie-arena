@@ -2088,6 +2088,8 @@ git commit -m "feat: player class identity, preload and raster rendering
 Co-Authored-By: Claude Code <noreply@anthropic.com>"
 ```
 
+> **Post-review note:** both reviews passed. Suite 153 tests / 20 files, `tsc` clean. The player `kind` carries `run.characterId`; class ids resolve through `vectorIdFor` → the shared survivor vector and `SPRITE_SIZE` (48), and `RASTER_META` covers all 14 ids so players will render raster once sheets are generated. `tickDeaths(dt)` runs every combat frame right after `sweepDead()`. The title-background and portrait smoke assertions now live in Task 12 (the task that implements `screens.ts`). Deferred nit: the cast ring in `src/ui/anim.ts` still divides by a hardcoded `0.2` instead of the now-canonical `atkDur`; pre-existing and unrelated.
+
 ---
 
 ## Task 11: 死亡特效列表
