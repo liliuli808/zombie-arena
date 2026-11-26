@@ -78,4 +78,23 @@ describe('loader', () => {
     __setRasterForTest('walker', WALKER);
     expect(rasterFor('walker')).toBe(WALKER);
   });
+
+  it('loads a sheet whose Image decodes', async () => {
+    class FakeImage {
+      src = '';
+      async decode() { return; }
+    }
+    const g = globalThis as { Image?: unknown };
+    const original = g.Image;
+    g.Image = FakeImage;
+    try {
+      await preloadRasterSheets(['walker']);
+    } finally {
+      if (original === undefined) delete g.Image; else g.Image = original;
+    }
+    const sheet = rasterFor('walker');
+    expect(sheet).toBeDefined();
+    expect(sheet!.id).toBe('walker');
+    expect(sheet!.frames).toBe(9);
+  });
 });
