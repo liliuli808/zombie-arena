@@ -2376,11 +2376,13 @@ Expected: PASS。
 - [ ] **Step 7: 提交**
 
 ```bash
-git add src/ui/icons.ts src/ui/icons.test.ts src/ui/screens.ts index.html
+git add src/ui/icons.ts src/ui/icons.test.ts src/ui/screens.ts index.html src/main.smoke.test.ts
 git commit -m "feat(ui): portraits, shop icons and title background
 
 Co-Authored-By: Claude Code <noreply@anthropic.com>"
 ```
+
+> **Post-review note:** both reviews passed (155 tests / 21 files, `tsc` clean). `iconFor` caches before the DOM guard so a no-DOM `''` is never memoized; the offscreen weapon canvas is centered (view 24 → 40px inside 48×48). Character name/desc stay escaped inside `btnRaw`; `onerror`-hide is the intended graceful fallback for assets that are generated in Task 14/15. Accepted nits: 8px vs 6px icon margin, and the redundant `createElement` guard. The Step 7 `git add` now includes the smoke test file.
 
 ---
 
