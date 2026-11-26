@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -201,7 +202,8 @@ class ExtrasTests(unittest.TestCase):
             pp.process_icons(sheet, out)
             for cid in pp.ICON_IDS:
                 self.assertTrue((out / f"{cid}.png").exists())
-                self.assertEqual(Image.open(out / f"{cid}.png").size, (48, 48))
+                with Image.open(out / f"{cid}.png") as im:
+                    self.assertEqual(im.size, (48, 48))
 
     def test_process_title_crops_and_resizes_to_1536_by_1024(self):
         with tempfile.TemporaryDirectory() as td:
@@ -210,7 +212,84 @@ class ExtrasTests(unittest.TestCase):
             Image.new("RGB", (1600, 1000), (20, 24, 32)).save(raw)
             out = root / "art" / "title.png"
             pp.process_title(raw, out)
-            self.assertEqual(Image.open(out).size, (1536, 1024))
+            with Image.open(out) as im:
+                self.assertEqual(im.size, (1536, 1024))
+
+
+class MainTests(unittest.TestCase):
+    @staticmethod
+    def stub_character(raw_dir: Path, cid: str, chars_dir: Path, portraits_dir: Path) -> dict:
+        return {
+            "id": cid,
+            "src": f"/assets/characters/{cid}.png",
+            "view": 48,
+            "frames": 9,
+            "walkFps": 8,
+            "clips": {"idle": [0]},
+        }
+
+    def test_main_full_success_writes_14_entry_metadata(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            meta = root / "rasterMeta.generated.ts"
+            with mock.patch.object(pp, "process_character", side_effect=self.stub_character):
+                rc = pp.main([
+                    "--raw", str(root / "raw"),
+                    "--out", str(root / "assets"),
+                    "--meta", str(meta),
+                ])
+            self.assertEqual(rc, 0)
+            self.assertTrue(meta.exists())
+            self.assertEqual(meta.read_text().count("/assets/characters/"), 14)
+
+    def test_main_character_failure_skips_metadata(self):
+        def stub(raw_dir, cid, chars_dir, portraits_dir):
+            if cid == "mother":
+                raise RuntimeError("boom")
+            return MainTests.stub_character(raw_dir, cid, chars_dir, portraits_dir)
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            meta = root / "rasterMeta.generated.ts"
+            with mock.patch.object(pp, "process_character", side_effect=stub):
+                rc = pp.main([
+                    "--raw", str(root / "raw"),
+                    "--out", str(root / "assets"),
+                    "--meta", str(meta),
+                ])
+            self.assertEqual(rc, 1)
+            self.assertFalse(meta.exists())
+
+    def test_main_only_never_writes_metadata(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            meta = root / "rasterMeta.generated.ts"
+            with mock.patch.object(pp, "process_character", side_effect=self.stub_character):
+                rc = pp.main([
+                    "--only", "walker",
+                    "--raw", str(root / "raw"),
+                    "--out", str(root / "assets"),
+                    "--meta", str(meta),
+                ])
+            self.assertEqual(rc, 0)
+            self.assertFalse(meta.exists())
+
+    def test_main_extras_isolated_failures(self):
+        title = mock.Mock()
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            meta = root / "rasterMeta.generated.ts"
+            with mock.patch.object(pp, "process_character", side_effect=self.stub_character), \
+                    mock.patch.object(pp, "process_icons", side_effect=RuntimeError("bad icons")), \
+                    mock.patch.object(pp, "process_title", title):
+                rc = pp.main([
+                    "--only", "walker", "--extras",
+                    "--raw", str(root / "raw"),
+                    "--out", str(root / "assets"),
+                    "--meta", str(meta),
+                ])
+            self.assertEqual(rc, 1)
+            title.assert_called_once()
 
 
 if __name__ == "__main__":

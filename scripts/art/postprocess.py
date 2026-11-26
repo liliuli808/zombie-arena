@@ -253,6 +253,8 @@ def write_metadata(entries: list[dict], path: Path) -> None:
 def process_icons(raw_path: Path, out_dir: Path, size: int = 48, content_h: int = 36) -> None:
     """4×2 图标表 -> 8 个 48×48 透明图标。"""
     cells = split_grid(Image.open(raw_path).convert("RGBA"), 4, 2)
+    if len(cells) != len(ICON_IDS):
+        raise ValueError(f"expected {len(ICON_IDS)} icon cells, got {len(cells)}")
     out_dir.mkdir(parents=True, exist_ok=True)
     for cid, cell in zip(ICON_IDS, cells):
         cut = cut_out(cell)
@@ -285,11 +287,11 @@ def process_title(raw_path: Path, out_path: Path) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--raw", default=".art-cache/raw")
-    ap.add_argument("--out", default="public/assets")
-    ap.add_argument("--meta", default="src/ui/rasterMeta.generated.ts")
-    ap.add_argument("--only", nargs="*", default=None)
-    ap.add_argument("--extras", action="store_true")
+    ap.add_argument("--raw", default=".art-cache/raw", help="原始生成图目录")
+    ap.add_argument("--out", default="public/assets", help="输出资源目录")
+    ap.add_argument("--meta", default="src/ui/rasterMeta.generated.ts", help="生成的元数据 TS 路径")
+    ap.add_argument("--only", nargs="+", default=None, help="只处理指定角色 id")
+    ap.add_argument("--extras", action="store_true", help="同时处理图标与标题图")
     args = ap.parse_args(argv)
 
     raw = Path(args.raw)
@@ -311,14 +313,19 @@ def main(argv: list[str] | None = None) -> int:
         write_metadata(entries, Path(args.meta))
 
     if args.extras:
-        try:
-            # 远端把 extras 写在 raw/extras/ 下，和角色目录平级
-            process_icons(raw / "extras" / "icons.png", out / "icons")
-            process_title(raw / "extras" / "title.png", out / "art" / "title.png")
-            print("OK extras")
-        except Exception as exc:  # noqa: BLE001
-            failed += 1
-            print("FAIL extras", exc, file=sys.stderr)
+        # 远端把 extras 写在 raw/extras/ 下，和角色目录平级；
+        # 图标与标题各自独立，任一失败不影响另一个。
+        jobs = [
+            ("icons", raw / "extras" / "icons.png", out / "icons", process_icons),
+            ("title", raw / "extras" / "title.png", out / "art" / "title.png", process_title),
+        ]
+        for name, src, dst, fn in jobs:
+            try:
+                fn(src, dst)
+                print("OK", name)
+            except Exception as exc:  # noqa: BLE001
+                failed += 1
+                print("FAIL", name, exc, file=sys.stderr)
 
     return 1 if failed else 0
 
