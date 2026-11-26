@@ -1224,7 +1224,7 @@ python3 scripts/art/test_generate.py -v
 python3 scripts/art/generate_remote.py --manifest scripts/art/manifest.json --out /tmp/art-raw --dry-run | tail -5
 ```
 
-Expected: 7 tests PASS；dry-run 输出 `PLANNED 44`（14×3 + 2）。
+Expected: 11 tests PASS；dry-run 输出 `PLANNED 44`（14×3 + 2）。
 
 - [ ] **Step 6: 提交**
 
@@ -1234,6 +1234,8 @@ git commit -m "feat(art): H3 manifest, prompt builders and job planner
 
 Co-Authored-By: Claude Code <noreply@anthropic.com>"
 ```
+
+> **Post-review note:** final planner has 11 tests (seed/init wiring, unique seeds, force replan, extras skip). Remote writes are atomic (`tmp` + `os.replace`); `--only` uses `nargs="+"`; `ensure_loaded()` is skipped when there are no jobs; missing key/load failures write a finished `status.json` and exit 2/1; the archive follows `--out`; retries do not sleep after the last attempt; failures are recorded in an `errors` list; the walk prompt appends the grid clause only when the style lacks it.
 
 ---
 
