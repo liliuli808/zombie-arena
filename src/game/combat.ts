@@ -18,6 +18,8 @@ export class World {
   logs: string[] = [];
   spawned: { what: string; n: number; x?: number; y?: number; hostile?: boolean }[] = [];
   floating: { x: number; y: number; text: string; time: number }[] = [];
+  /** 纯视觉的倒地记录：实体本体仍由 sweepDead 立即移除。 */
+  deaths: { kind: string; x: number; y: number; facing: number; t: number }[] = [];
 
   constructor(public run: RunState, public bus: EventBus) {
     this.stats = resolveLoadout(run).stats;
@@ -52,6 +54,9 @@ export class World {
   kill(e: Entity, byMelee: boolean, ctx?: Ctx): void {
     if (e.dead) return;
     e.dead = true;
+    if (e.id !== 1 && !e.tags.includes('deployable')) {
+      this.deaths.push({ kind: e.kind, x: e.x, y: e.y, facing: e.facing, t: 0 });
+    }
     this.run.kills += 1;
     const def = ZOMBIE_BY_ID[e.kind];
     if (def) {
@@ -71,6 +76,10 @@ export class World {
   }
   float(x: number, y: number, text: string): void { this.floating.push({ x, y, text, time: 0.8 }); }
   sweepDead(): void { this.entities = this.entities.filter(e => !e.dead); }
+  tickDeaths(dt: number): void {
+    for (const d of this.deaths) d.t += dt;
+    this.deaths = this.deaths.filter(d => d.t < 0.8);
+  }
 }
 
 export function dealDamage(w: World, target: Entity, op: DamageOp, frontFacing = false): number {

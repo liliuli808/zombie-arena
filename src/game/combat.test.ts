@@ -80,6 +80,34 @@ describe('dealDamage pipeline', () => {
   });
 });
 
+describe('death visuals', () => {
+  it('records one death record per killed enemy and clears it after 0.8s', () => {
+    const { w } = world();
+    const e = mkEntity(9);
+    w.entities.push(e);
+    w.kill(e, false);
+    expect(w.deaths).toHaveLength(1);
+    expect(w.deaths[0]!.kind).toBe('walker');
+    w.kill(e, false);
+    expect(w.deaths).toHaveLength(1);
+    w.tickDeaths(0.79);
+    expect(w.deaths).toHaveLength(1);
+    w.tickDeaths(0.02);
+    expect(w.deaths).toHaveLength(0);
+  });
+
+  it('does not record player or deployable deaths', () => {
+    const { w } = world();
+    const p = mkEntity(1, 'veteran');
+    const d = mkEntity(10, 'turret');
+    d.tags.push('deployable');
+    w.entities.push(p, d);
+    w.kill(p, false);
+    w.kill(d, false);
+    expect(w.deaths).toHaveLength(0);
+  });
+});
+
 describe('DoT kills go through the same kill accounting', () => {
   it('burn/poison deaths award gold, kills, boss kills, explosions and onKill', () => {
     const { w, run, bus } = world();
