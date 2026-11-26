@@ -229,9 +229,16 @@ def main(argv: list[str] | None = None) -> int:
             errors.append(f"{name}: {last_exc!r}")
             print("FAILED", name, flush=True)
 
+    # 先归档再写终态：finished:true 必须意味着 raw.zip 已存在，
+    # 否则编排端会在看不到任何信息的情况下去下载一个不存在的包。
+    try:
+        shutil.make_archive(str(raw_dir), "zip", raw_dir)
+    except Exception as exc:  # noqa: BLE001 - 归档失败同样要落终态
+        failed.append("archive")
+        errors.append(f"archive: {exc!r}")
+        print("ARCHIVE_FAILED", repr(exc), flush=True)
     write_status(status_path, {"current": None, "total": len(jobs), "done": done,
                                "failed": failed, "errors": errors, "finished": True})
-    shutil.make_archive(str(raw_dir), "zip", raw_dir)
     print("ALL_DONE", len(done), "failed", len(failed), flush=True)
     return 1 if failed else 0
 
