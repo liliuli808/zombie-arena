@@ -2554,6 +2554,8 @@ git commit -m "art: add walker raster sheet and UI assets
 Co-Authored-By: Claude Code <noreply@anthropic.com>"
 ```
 
+> **Post-review note:** walker + extras generated end-to-end on the A100 session and committed in `eac4e49`. Objective gate checks: every frame shares the same opaque row range 4–45 (feet on one baseline), coverage 0.38–0.45, death frame sinks to row 19. Contact sheet is now 9 frames wide (`--scale 8` → 3456×384), so the plan's "384×64" expectation was stale. User approved the look before batch generation.
+
 ---
 
 ## Task 15: 批量生成其余 13 个角色
@@ -2618,6 +2620,8 @@ git commit -m "art: add raster sprite sheets for all characters
 Co-Authored-By: Claude Code <noreply@anthropic.com>"
 ```
 
+> **Post-review note:** 39 images generated with zero failures, but `validate.py` rejected two oversize frames: `runner` frame 8 and `spitter` frame 4 both ~0.67 coverage (> 0.60). `--force` alone could not fix them — the model is deterministic, so the same seed yields byte-identical output. Bumping the manifest seeds re-rolled the art: runner passed on the first bump; spitter needed two. Final seeds are runner 1008, spitter 1012. Because the hurt prompt is character-agnostic and identity comes from the init image, runner/fatty and spitter/armored legitimately share a hurt seed, so `test_seed_init_wiring_and_unique_jobs` now keys uniqueness on (seed, prompt, init) rather than seed alone. Committed as `ea4e73d`.
+
 ---
 
 ## Task 16: 回退演练与最终验收
@@ -2670,6 +2674,8 @@ Expected: 测试与构建通过；`git status` 不包含 `.art-cache/`、`/tmp` 
 - H3 `reference` 工作流可锁角色生成动作帧
 - 每角色 3 张 2×2 表 → 9 帧 48px 的管线
 - 生成入口 `python3 scripts/colab_gen_art.py`
+
+> **Post-review note:** fallback drill passed — with `characters/fatty.png` removed, `rasterFor('fatty')` is undefined, `drawEntity` does not throw and takes the 162-call vector path with no `drawImage`. Final state: 158 TS tests / 21 files, 32 Python tests, `npm run build` clean. The final code review caught one real bug: `iconFor` looked up `SPRITES` by weapon id, so `shortknife`→`knife` and `chainsaw`→`saw` shop rows had no icon; fixed via `weaponSpriteId()` with a test that every weapon resolves to a drawable sprite. Also fixed the flipped vector death fallback and the cast-ring magic `0.2`. The proposed native-48px raster draw was rejected: butcher/mother have 60/56px hitboxes, so shrinking the sprite would render it smaller than its collision radius.
 
 ---
 
