@@ -1950,12 +1950,6 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 
 - [ ] **Step 1: 写失败测试**
 
-在 `src/main.smoke.test.ts` 的第一个测试里追加：
-
-```ts
-    expect(overlay.innerHTML).toContain('/assets/art/title.png');
-```
-
 在第二个测试的 `click(buttons, a => a['t'] === 'beginWave');` 之后追加：
 
 ```ts
@@ -1965,11 +1959,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
     expect(player?.kind).toBe('veteran');
 ```
 
-在第二个测试的 `expect(overlay.innerHTML).toContain('选择角色');` 之后追加：
-
-```ts
-    expect(overlay.innerHTML).toContain('/assets/portraits/veteran.png');
-```
+> 标题背景与角色肖像的 DOM 断言放在 Task 12（本任务不修改 `screens.ts`，断言会必然失败）。
 
 在 `src/ui/render.test.ts` 的 `describe('renderFrame', ...)` 内追加：
 
@@ -1996,7 +1986,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 npx vitest run src/main.smoke.test.ts src/ui/render.test.ts
 ```
 
-Expected: 标题页没有背景图；玩家 `kind` 是 `'player'`；角色选择没有肖像。
+Expected: 玩家 `kind` 是 `'player'`；类角色实体走矢量回退不抛异常。
 
 - [ ] **Step 3: 改 main.ts**
 
@@ -2191,6 +2181,8 @@ git commit -m "feat(game): visual death records for raster death frames
 Co-Authored-By: Claude Code <noreply@anthropic.com>"
 ```
 
+> **Post-review note:** review flagged the duplicated `0.8` lifetime (combat prune vs. anim fade). Added `DeathRecord` + `DEATH_LIFETIME` to `src/core/types.ts`, consumed by both `combat.ts` and `anim.ts`; the tests now also assert the kill still applied and that `x/y/facing` are snapshotted. Also corrected an ordering bug: Task 10's title-background and portrait smoke assertions moved to Task 12, which is the task that implements `screens.ts`. Suite remains 152 tests / 20 files.
+
 ---
 
 ## Task 12: UI 肖像、图标与标题背景
@@ -2219,6 +2211,18 @@ describe('iconFor', () => {
     expect(iconFor('weapon', 'pistol')).toBe('');
   });
 });
+```
+
+在 `src/main.smoke.test.ts` 里补两处 DOM 断言（本任务的 `screens.ts` 改动才提供它们）：
+
+```ts
+    // 第一个测试：标题页背景
+    expect(overlay.innerHTML).toContain('/assets/art/title.png');
+```
+
+```ts
+    // 第二个测试：紧跟在 expect(overlay.innerHTML).toContain('选择角色'); 之后
+    expect(overlay.innerHTML).toContain('/assets/portraits/veteran.png');
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
