@@ -16,10 +16,17 @@ from postprocess import (
 TITLE_SIZE = (1536, 1024)
 
 
+def _size_str(size: tuple[int, int]) -> str:
+    return f"{size[0]}x{size[1]}"
+
+
 def validate_sheet(path: Path) -> None:
-    img = Image.open(path).convert("RGBA")
-    if img.size != (VIEW * FRAMES, VIEW):
-        raise ValueError(f"{path}: expected {VIEW * FRAMES}x{VIEW}, got {img.size}")
+    with Image.open(path) as src:
+        img = src.convert("RGBA")
+    expected = (VIEW * FRAMES, VIEW)
+    if img.size != expected:
+        raise ValueError(
+            f"{path}: expected {_size_str(expected)}, got {_size_str(img.size)}")
     arr = np.array(img)
     palette = set(map(tuple, PALETTE.tolist()))
     for i in range(FRAMES):
@@ -29,41 +36,50 @@ def validate_sheet(path: Path) -> None:
             raise ValueError(f"{path}: frame {i} coverage {coverage:.3f} out of range")
         opaque = arr[:, i * VIEW:(i + 1) * VIEW, :3][alpha > 0]
         for px in map(tuple, opaque):
+            px = tuple(int(v) for v in px)
             if px not in palette:
                 raise ValueError(f"{path}: frame {i} has non-palette color {px}")
     print("OK", path)
 
 
 def validate_portrait(path: Path) -> None:
-    img = Image.open(path)
-    if img.size != (160, 160):
-        raise ValueError(f"{path}: expected 160x160, got {img.size}")
+    expected = (160, 160)
+    with Image.open(path) as img:
+        if img.size != expected:
+            raise ValueError(
+                f"{path}: expected {_size_str(expected)}, got {_size_str(img.size)}")
     print("OK", path)
 
 
 def validate_icon(path: Path) -> None:
-    img = Image.open(path)
-    if img.size != (48, 48):
-        raise ValueError(f"{path}: expected 48x48, got {img.size}")
+    expected = (48, 48)
+    with Image.open(path) as img:
+        if img.size != expected:
+            raise ValueError(
+                f"{path}: expected {_size_str(expected)}, got {_size_str(img.size)}")
     print("OK", path)
 
 
 def validate_title(path: Path) -> None:
-    img = Image.open(path)
-    if img.size != TITLE_SIZE:
-        raise ValueError(f"{path}: expected {TITLE_SIZE}, got {img.size}")
+    with Image.open(path) as img:
+        if img.size != TITLE_SIZE:
+            raise ValueError(
+                f"{path}: expected {_size_str(TITLE_SIZE)}, got {_size_str(img.size)}")
     print("OK", path)
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--assets", default="public/assets")
-    ap.add_argument("--only", nargs="*", default=None)
-    ap.add_argument("--extras", action="store_true")
+    ap.add_argument("--assets", default="public/assets",
+                    help="Asset root containing characters/, portraits/, icons/, art/")
+    ap.add_argument("--only", nargs="+", default=None,
+                    help="Validate only these character ids (default: all)")
+    ap.add_argument("--extras", action="store_true",
+                    help="Also validate icons and the title image")
     args = ap.parse_args(argv)
 
     assets = Path(args.assets)
-    ids = args.only or CHARACTER_IDS
+    ids = args.only if args.only is not None else CHARACTER_IDS
     errors: list[str] = []
     for cid in ids:
         for path, fn in (

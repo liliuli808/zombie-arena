@@ -1,5 +1,7 @@
+import io
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -308,8 +310,39 @@ class ValidateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "bad.png"
             Image.new("RGBA", (100, 48), (0, 0, 0, 0)).save(path)
-            with self.assertRaises(ValueError):
+            with self.assertRaisesRegex(ValueError, r"expected 432x48"):
                 vv.validate_sheet(path)
+
+    def test_validate_sheet_rejects_non_palette_pixel(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "bad.png"
+            img = Image.new("RGBA", (pp.VIEW * pp.FRAMES, pp.VIEW), (0, 0, 0, 0))
+            body = tuple(int(v) for v in pp.PALETTE[0]) + (255,)
+            ImageDraw.Draw(img).rectangle(
+                [0, 0, pp.VIEW * pp.FRAMES - 1, 19], fill=body)
+            img.putpixel((5, 5), (1, 2, 3, 255))
+            img.save(path)
+            with self.assertRaisesRegex(ValueError, r"non-palette"):
+                vv.validate_sheet(path)
+
+    def test_main_returns_nonzero_when_asset_missing(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc = vv.main(["--assets", str(root), "--only", "walker"])
+            self.assertEqual(rc, 1)
+
+    def test_main_only_scopes_validation(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            raw = root / "raw" / "walker"
+            raw.mkdir(parents=True)
+            for name in ("walk", "act", "hurt"):
+                make_cell_sheet(raw / f"{name}.png")
+            pp.process_character(raw.parent, "walker", root / "characters", root / "portraits")
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc = vv.main(["--assets", str(root), "--only", "walker"])
+            self.assertEqual(rc, 0)
 
 
 if __name__ == "__main__":
