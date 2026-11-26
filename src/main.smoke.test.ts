@@ -106,6 +106,10 @@ describe('main.ts boot smoke test', () => {
     // 买第一件装备，然后开战
     click(buttons, a => a['t'] === 'buy');
     click(buttons, a => a['t'] === 'beginWave');
+    const player = worlds
+      .map(w => w.entities.find(e => e.id === 1))
+      .find(Boolean);
+    expect(player?.kind).toBe('veteran');
     expect(overlay.innerHTML).toBe('');
     const keys = listeners.get('keydown') ?? [];
     expect(keys.length).toBeGreaterThan(0);

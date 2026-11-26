@@ -11,6 +11,7 @@ import { ZOMBIE_BY_ID } from './data/zombies';
 import { TALENTS, CURSES } from './data/rules.content';
 import { createInput, consumeEdges } from './ui/input';
 import { renderFrame } from './ui/render';
+import { preloadRasterSheets } from './ui/raster';
 import { spawnBullet, advanceBullets, type Bullet, type BulletHit } from './game/bullets';
 import { spawnImpact, tickImpacts, type Impact } from './ui/bullets';
 import { Screens, type ScreenAction } from './ui/screens';
@@ -189,7 +190,7 @@ function startWave(): void {
 function ensurePlayer(): Entity {
   let p = world.entities.find(e => e.id === 1);
   if (!p) {
-    p = { id: 1, kind: 'player', x: GAME_W / 2, y: GAME_H / 2, radius: 12,
+    p = { id: 1, kind: run.characterId, x: GAME_W / 2, y: GAME_H / 2, radius: 12,
       hp: run.hp, maxHp: loadout.stats.maxHp, speed: loadout.stats.moveSpeed, facing: 0,
       tags: ['player'], statuses: [], dead: false, ttl: 0, data: {} };
     world.entities.push(p);
@@ -344,12 +345,14 @@ function updateCombat(dt: number): void {
       if (playerShield <= 0) p.hp -= dmg;
       e.data['attack'] = 0.8;
       e.data['atkT'] = 0.3; // 前扑动作
+      e.data['atkDur'] = 0.3;
       if (slot) onPlayerHit(slot, loadout.stats.comboKeepOnHit);
       world.float(p.x, p.y - 16, `-${Math.round(dmg)}`);
     }
     if (behaviour === 'spitter' && (e.data['attack'] ?? 0) <= 0 && d < 320) {
       e.data['attack'] = 2.2;
       e.data['atkT'] = 0.45; // 鼓喉喷酸动作
+      e.data['atkDur'] = 0.45;
       world.float(e.x, e.y - 12, '酸');
       if (playerShield <= 0) p.hp -= 4;
     }
@@ -357,6 +360,7 @@ function updateCombat(dt: number): void {
     if ((behaviour === 'summoner' || e.tags.includes('summons')) && (e.data['summon'] ?? 0) <= 0) {
       e.data['summon'] = def?.boss ? 5 : 4;
       e.data['atkT'] = 0.6; // 举杖召唤动作
+      e.data['atkDur'] = 0.6;
       spawnQueue.push('walker', 'walker');
     }
   }
@@ -370,6 +374,7 @@ function updateCombat(dt: number): void {
     if (target && (e.data['attack'] ?? 0) <= 0) {
       e.data['attack'] = 0.5;
       e.data['atkT'] = 0.18; // 炮管后坐动作
+      e.data['atkDur'] = 0.18;
       const spell = loadout.stats.turretSpell;
       const angle = Math.atan2(target.y - e.y, target.x - e.x);
       // 炮塔用 tech（蓝色能量弹），符文炮塔用 magic（紫色法术弹）；
@@ -401,6 +406,7 @@ function updateCombat(dt: number): void {
 
   consumeSpawns();
   world.sweepDead();
+  world.tickDeaths(dt);
   // 动作计时器（受击闪红 / 攻击动作）逐帧衰减
   for (const e of world.entities) {
     if ((e.data['hitT'] ?? 0) > 0) e.data['hitT'] = Math.max(0, e.data['hitT'] - dt);
@@ -458,6 +464,7 @@ function fireInput(slot: NonNullable<RunState['slots'][number]>,
 
 function swing(p: Entity, def: (typeof WEAPON_BY_ID)[string], power: number, heavy: boolean): void {
   p.data['atkT'] = heavy ? 0.32 : 0.18; // 挥砍动作时长
+  p.data['atkDur'] = heavy ? 0.32 : 0.18;
   const range = def.range + loadout.stats.meleeRangeAdd;
   for (const o of arenaObjects()) {
     if (Math.hypot(o.x + o.w / 2 - p.x, o.y + o.h / 2 - p.y) > range + 12) continue;
@@ -484,6 +491,7 @@ function swing(p: Entity, def: (typeof WEAPON_BY_ID)[string], power: number, hea
 }
 function shoot(p: Entity, def: (typeof WEAPON_BY_ID)[string]): void {
   p.data['atkT'] = 0.12; // 开火/施法动作时长
+  p.data['atkDur'] = 0.12;
   const pellets = def.id === 'shotgun' ? 5 : 1;
   // 智能瞄准（枪 + 科技）：放宽命中锥角，实现「子弹弱追踪」
   const aimTolerance = 0.16 + loadout.stats.bulletHoming * 0.12;
@@ -557,6 +565,7 @@ window.addEventListener('blur', () => {
 window.addEventListener('focus', () => { paused = false; last = performance.now(); });
 
 screens.title(save);
+void preloadRasterSheets();
 function loop(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;

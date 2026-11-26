@@ -1,5 +1,5 @@
 import { drawSprite, spriteDrawSize } from './sprites';
-import { drawEntity, type PlayerAnim } from './anim';
+import { drawDeath, drawEntity, type PlayerAnim } from './anim';
 import { drawBullets, drawImpacts, type Impact } from './bullets';
 import type { Bullet } from '../game/bullets';
 import type { RunState, PlayerStats, Phase, Loadout } from '../core/types';
@@ -68,14 +68,15 @@ export function renderFrame(ctx: CanvasRenderingContext2D, inp: RenderInput): vo
   } : undefined;
   for (const e of world.entities) {
     if (e.dead) continue;
-    const id = e.id === 1 ? 'player' : e.kind;
+    const id = e.kind;
     drawEntity(ctx, e, t, e.id === 1 ? playerAnim : undefined);
     if (e.hp < e.maxHp) {
-      const barY = e.y - spriteDrawSize(e.id === 1 ? 'player' : e.kind) / 2 - 5;
+      const barY = e.y - spriteDrawSize(id) / 2 - 5;
       ctx.fillStyle = '#000'; ctx.fillRect(e.x - 14, barY, 28, 3);
       ctx.fillStyle = '#e05050'; ctx.fillRect(e.x - 14, barY, 28 * Math.min(1, Math.max(0, e.hp / e.maxHp)), 3);
     }
   }
+  for (const d of world.deaths) drawDeath(ctx, d);
   ctx.font = '12px monospace'; ctx.textAlign = 'center';
   // 弹幕画在实体之上、浮字之下，保证任何场景下都清晰可见
   drawBullets(ctx, inp.bullets ?? []);

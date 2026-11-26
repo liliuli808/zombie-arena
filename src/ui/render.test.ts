@@ -88,4 +88,19 @@ describe('renderFrame', () => {
       loadout: resolveLoadout(run) })).not.toThrow();
     expect(calls.length).toBeGreaterThan(10);
   });
+
+  it('renders a class-kind player through the vector fallback', () => {
+    const { c } = stubCtx();
+    const run = createRunState(2, 'wizard', 'yard');
+    const bus = new EventBus();
+    const world = new World(run, bus);
+    world.setRules(resolveLoadout(run).rules);
+    world.entities.push({ id: 1, kind: 'wizard', x: 100, y: 100, radius: 12,
+      hp: 100, maxHp: 100, speed: 100, facing: 0, tags: ['player'],
+      statuses: [], dead: false, ttl: 0, data: {} });
+    const arena = new Arena('yard');
+    expect(() => renderFrame(c, { run, world, arena, stats: world.stats,
+      mouse: { x: 100, y: 100 }, phase: 'combat', dt: 0.016,
+      loadout: resolveLoadout(run) })).not.toThrow();
+  });
 });
