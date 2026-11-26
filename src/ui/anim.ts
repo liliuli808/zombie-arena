@@ -88,6 +88,7 @@ export function drawEntity(ctx: CanvasRenderingContext2D, e: Entity, time: numbe
       : clip === 'walk' ? walk : 0;
     const frame = clipFrame(sheet, clip, phase);
     const bob = clip === 'idle' ? (Math.sin(time * 4 + e.id) > 0 ? -1 : 0) : 0;
+    // 大号敌人（屠夫/尸潮之母）的碰撞半径更大，绘制尺寸必须跟上，否则贴图小于判定框
     drawRasterFrame(ctx, sheet, frame,
       e.x + Math.cos(e.facing) * lunge, e.y - hover + bob,
       size, Math.cos(e.facing) < 0);
@@ -117,13 +118,19 @@ export function drawDeath(ctx: CanvasRenderingContext2D,
   if (alpha <= 0) return;
   const size = spriteDrawSize(d.kind);
   const sheet = rasterFor(d.kind);
+  const flip = Math.cos(d.facing) < 0;
   ctx.save();
   ctx.globalAlpha = alpha;
   if (sheet) {
     const frame = sheet.clips.death[0] ?? 0;
-    drawRasterFrame(ctx, sheet, frame, d.x, d.y, size, Math.cos(d.facing) < 0);
+    drawRasterFrame(ctx, sheet, frame, d.x, d.y, size, flip);
   } else {
-    drawSprite(ctx, vectorIdFor(d.kind), d.x, d.y, 1, 0);
+    // 矢量回退：drawSprite 不带翻转，这里补上朝向
+    ctx.save();
+    ctx.translate(Math.round(d.x), Math.round(d.y));
+    if (flip) ctx.scale(-1, 1);
+    drawSprite(ctx, vectorIdFor(d.kind), 0, 0, 1, 0);
+    ctx.restore();
   }
   ctx.restore();
 }
@@ -234,7 +241,7 @@ function drawPlayerWeapon(ctx: CanvasRenderingContext2D, e: Entity,
 
   // 施法扩散环（颜色跟元素走）
   if (def.school === 'magic' && phase > 0) {
-    const t = 1 - Math.min(1, (e.data['atkT'] ?? 0) / 0.2);
+    const t = 1 - Math.min(1, atkPhase(e));
     ctx.globalAlpha = (1 - t) * 0.5;
     ctx.strokeStyle = def.element === 'ice' ? '#8fdcff'
       : def.element === 'lightning' ? '#ffe066' : '#ff6b35';
