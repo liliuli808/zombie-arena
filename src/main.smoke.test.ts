@@ -74,6 +74,7 @@ describe('main.ts boot smoke test', () => {
     const main = await import('./main');
     expect(main.boot()).toBe(true);
     expect(overlay.innerHTML).toContain('僵尸竞技场');
+    expect(overlay.innerHTML).toContain('/assets/art/title.png');
     expect(raf.length).toBe(1);
     // 推一帧（此时 phase=title，只渲染不更新战斗）
     expect(() => frame(raf, 1016)).not.toThrow();
@@ -99,6 +100,7 @@ describe('main.ts boot smoke test', () => {
     expect(overlay.innerHTML).toContain('僵尸竞技场');
     click(buttons, a => a['t'] === 'continue');
     expect(overlay.innerHTML).toContain('选择角色');
+    expect(overlay.innerHTML).toContain('/assets/portraits/veteran.png');
     // 选角色 → 进商店
     click(buttons, a => a['t'] === 'start');
     expect(overlay.innerHTML).toContain('商店');
