@@ -1,50 +1,100 @@
-export interface PixelMap { w: number; h: number; rows: string[]; palette: Record<string, string>; scale: number }
-const P = (rows: string[], palette: Record<string, string>, scale = 3): PixelMap =>
-  ({ w: rows[0].length, h: rows.length, rows, palette, scale });
+import { SPRITES, vectorIds, type PixelShape, type SpriteArt, type VectorPart } from './vector';
 
-const base: Record<string, string> = { f: '#8fae6a', d: '#3d4a2c', e: '#ff5555',
-  c: '#5a4a63', m: '#b9c2cc', h: '#ff9a3c', i: '#8fdcff', a: '#ffe066' };
+export { SPRITES, vectorIds };
+export type { PixelShape, SpriteArt };
 
-export const SPRITE_MAPS: Record<string, PixelMap> = {
-  player: P(['..cccc..','.cffffc.','.cfeefc.','.cffffc.','..cmmc..','..m..m..','..m..m..','.bb..bb.'],
-    { ...base, b: '#2b2b38' }),
-  walker: P(['..ffff..','.ffeeff.','.ffffff.','..dddd..','.d.dd.d.','..d..d..','.d....d.','........'], base),
-  runner: P(['..ffff..','.ffeeff.','.ffffff.','.dddddd.','d..dd..d','.d....d.','d......d','........'],
-    { ...base, f: '#b9d17a' }),
-  fatty: P(['.ffffff.','ffeeeff.','ffffffff','fddddddf','fddddddf','.fddddf.','.d.d.d.d','..d..d..'], base),
-  shield: P(['..ffff..','.ffeeff.','.ffffff.','mmmmmmmm','mmddddmm','mmddddmm','.d.d.d.d','..d..d..'], base),
-  spitter: P(['..ffff..','.ffeeff.','.hhffhh.','.ffffff.','..dddd..','.d.dd.d.','..d..d..','........'], base),
-  summoner: P(['..cccc..','.cceecc.','.cffffc.','.cccccc.','ccddddcc','.d.d.d.d','..d..d..','........'], base),
-  armored: P(['.mmmmmm.','mmfeefmm','mmffffmm','mmmmmmmm','mmddddmm','mmddddmm','.m.m.m.m','..m..m..'], base),
-  butcher: P(['mmffffmm','mffeeffm','ffffffff','ffddddff','ffddddff','mmffffmm','.m.m.m.m','..m..m..'], base),
-  mother: P(['.ccffcc.','cceeeecc','cffffffc','ccffffcc','cccccccc','cddddddc','.d.d.d.d','..d..d..'], base),
-  knife: P(['......m.','.....mm.','....mm..','...mm...','..mm....','.cc.....','cc......','........'], base),
-  katana: P(['......m.','.....mm.','....mm..','...mm...','..mm....','.mm.....','cc......','........'], base),
-  saw: P(['mmmmmm..','mhmmhmm.','cccccccc','cddddddc','cccccccc','.c....c.','........','........'], base),
-  pistol: P(['..mmmm..','.mmmmmm.','.ccmmm..','..cc....','..cc....','........','........','........'], base),
-  shotgun: P(['mmmmmmmm','ccccmmmm','..cc....','..cc....','........','........','........','........'], base),
-  sniper: P(['mmmmmmmm','.ccmmmmm','..cc..c.','..cc....','........','........','........','........'], base),
-  bat: P(['......mm','.....mm.','....mm..','...mm...','..mm....','.cc.....','cc......','........'], base),
-  hammer: P(['..mmmm..','..mmmm..','...cc...','...cc...','...cc...','...cc...','........','........'], base),
-  mace: P(['..mmmm..','.mhmmhm.','mmmmmmmm','...cc...','...cc...','...cc...','........','........'], base),
-  turret: P(['..mmmm..','.mmccmm.','mmcmmcmm','.mmmmmm.','..cccc..','.cc..cc.','........','........'], base),
-  grid: P(['ahahahah','hahahaha','ahahahah','hahahaha','........','........','........','........'], base),
-  drone: P(['..a..a..','.aammaa.','aammmmaa','..mmmm..','..a..a..','........','........','........'], base),
-  firestaff: P(['......h.','.....hh.','....hh..','...hh...','..hh....','.cc.....','cc......','........'], base),
-  frosttome: P(['.iiiiii.','iccciicc','icccciic','icccciic','.iiiiii.','........','........','........'], base),
-  ring: P(['..aaaa..','.a....a.','a..aa..a','a..aa..a','.a....a.','..aaaa..','........','........'], base),
-  barrel: P(['.hhhhhh.','hddddddh','hdhddhdh','hddddddh','hdhddhdh','hddddddh','.hhhhhh.','........'], base),
-  crate: P(['.cccccc.','cdcdcdcc','cccccccc','cdcdcdcc','cccccccc','.cccccc.','........','........'], base),
+/** 各精灵在画面上的显示高度（像素），约为碰撞半径的 2.6 倍。
+ *  帧网格是 48×48，显示时缩到 0.75 ~ 2.3 倍，仍在屏幕上保持硬边像素。 */
+const SPRITE_SIZE: Record<string, number> = {
+  veteran: 48, wizard: 48, engineer: 48, ronin: 48, jailer: 48,
+  player: 48, walker: 48, runner: 48, fatty: 54, shield: 48, spitter: 48,
+  summoner: 52, armored: 54, butcher: 72, mother: 72,
+  barrel: 48, crate: 48, turret: 48, grid: 48, drone: 44,
 };
-export function spriteIds(): string[] { return Object.keys(SPRITE_MAPS); }
-export function drawSprite(ctx: CanvasRenderingContext2D, id: string, x: number, y: number): void {
-  const m = SPRITE_MAPS[id] ?? SPRITE_MAPS['walker'];
-  for (let r = 0; r < m.rows.length; r++) {
-    for (let c = 0; c < m.w; c++) {
-      const ch = m.rows[r][c];
-      if (ch === '.') continue;
-      ctx.fillStyle = m.palette[ch] ?? '#ffffff';
-      ctx.fillRect(x + (c - m.w / 2) * m.scale, y + (r - m.h / 2) * m.scale, m.scale, m.scale);
+
+const VECTOR_FALLBACK: Record<string, string> = {
+  veteran: 'player', wizard: 'player', engineer: 'player',
+  ronin: 'player', jailer: 'player',
+};
+
+/** 职业 id 没有独立矢量骨架，回退到通用幸存者。 */
+export function vectorIdFor(id: string): string {
+  return VECTOR_FALLBACK[id] ?? id;
+}
+
+export function spriteIds(): string[] { return vectorIds(); }
+
+export function spriteDrawSize(id: string): number {
+  return SPRITE_SIZE[id] ?? 72;
+}
+
+export function spriteFrameCount(id: string): number {
+  return (SPRITES[id] ?? SPRITES['walker']).frames.length;
+}
+
+/** 把字符网格解析成像素块。相同颜色的相邻像素横向合并，减少 fillRect 次数。
+ *  part 按行段指定：不同行的同一角色可能属于不同部位（头/腿）。 */
+const frameCache = new Map<string, PixelShape[]>();
+export function frameShapes(id: string, frame = 0): PixelShape[] {
+  const key = `${id}:${frame}`;
+  const hit = frameCache.get(key);
+  if (hit) return hit;
+  const sp = SPRITES[id] ?? SPRITES['walker'];
+  const rows = sp.frames[Math.min(frame, sp.frames.length - 1)] ?? sp.frames[0];
+  const shapes: PixelShape[] = [];
+  for (let y = 0; y < rows.length; y++) {
+    const row = rows[y];
+    let run = 0;
+    while (run < row.length) {
+      const ch = row[run];
+      if (ch === '.' || ch === ' ') { run++; continue; }
+      let w = 1;
+      while (run + w < row.length && row[run + w] === ch) w++;
+      const fill = sp.palette[ch];
+      if (fill) shapes.push({ x: run, y, w, h: 1, fill, part: partOf(y, sp.view) });
+      run += w;
     }
   }
+  frameCache.set(key, shapes);
+  return shapes;
 }
+
+/** 按行归部位：头部与躯干算 body，腿部单独分组以便步态交换。 */
+function partOf(y: number, view: number): VectorPart {
+  const legLine = Math.round(view * 0.78);
+  return y >= legLine ? 'legL' : 'body';
+}
+
+/** 在已缩放好的坐标系里画一帧（调用方负责缩放与关闭平滑） */
+export function drawShapes(ctx: CanvasRenderingContext2D, shapes: PixelShape[],
+  view: number): void {
+  for (const s of shapes) {
+    ctx.fillStyle = s.fill;
+    ctx.fillRect(s.x - view / 2, s.y - view / 2, s.w, s.h);
+  }
+}
+
+/** 绘制单个精灵（以 x,y 为中心，整数倍放大，保持硬边） */
+export function drawSprite(ctx: CanvasRenderingContext2D, id: string,
+  x: number, y: number, scale = 1, frame = 0): void {
+  const sp = SPRITES[id] ?? SPRITES['walker'];
+  const size = spriteDrawSize(id) * scale;
+  const k = size / sp.view;
+  const smoothing = ctx.imageSmoothingEnabled;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.translate(Math.round(x), Math.round(y));
+  ctx.scale(k, k);
+  drawShapes(ctx, frameShapes(id, frame), sp.view);
+  ctx.restore();
+  ctx.imageSmoothingEnabled = smoothing;
+}
+
+/** 按部位拆分当前帧：body / legL / legR 等，供骨架动画逐层变换 */
+export function spriteParts(id: string, frame = 0): Record<string, PixelShape[]> {
+  const out: Record<string, PixelShape[]> = {};
+  for (const s of frameShapes(id, frame)) (out[s.part ?? 'body'] ??= []).push(s);
+  return out;
+}
+
+export { SPRITE_SIZE };
