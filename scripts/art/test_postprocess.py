@@ -191,5 +191,27 @@ class ProcessCharacterTests(unittest.TestCase):
             self.assertIn('"walk": [0, 1, 2, 3]', text)
 
 
+class ExtrasTests(unittest.TestCase):
+    def test_process_icons_slices_4_by_2_into_48px(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            sheet = root / "icons.png"
+            make_cell_sheet(sheet, size=(1024, 512))
+            out = root / "icons"
+            pp.process_icons(sheet, out)
+            for cid in pp.ICON_IDS:
+                self.assertTrue((out / f"{cid}.png").exists())
+                self.assertEqual(Image.open(out / f"{cid}.png").size, (48, 48))
+
+    def test_process_title_crops_and_resizes_to_1536_by_1024(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            raw = root / "title.png"
+            Image.new("RGB", (1600, 1000), (20, 24, 32)).save(raw)
+            out = root / "art" / "title.png"
+            pp.process_title(raw, out)
+            self.assertEqual(Image.open(out).size, (1536, 1024))
+
+
 if __name__ == "__main__":
     unittest.main()

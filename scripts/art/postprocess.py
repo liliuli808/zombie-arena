@@ -248,3 +248,80 @@ def write_metadata(entries: list[dict], path: Path) -> None:
     lines += ["};", ""]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines))
+
+
+def process_icons(raw_path: Path, out_dir: Path, size: int = 48, content_h: int = 36) -> None:
+    """4×2 图标表 -> 8 个 48×48 透明图标。"""
+    cells = split_grid(Image.open(raw_path).convert("RGBA"), 4, 2)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for cid, cell in zip(ICON_IDS, cells):
+        cut = cut_out(cell)
+        w0, h0 = cut.size
+        scale = min(content_h / h0, (size - 4) / w0)
+        nw, nh = max(1, round(w0 * scale)), max(1, round(h0 * scale))
+        small = cut.resize((nw, nh), Image.LANCZOS)
+        canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        canvas.alpha_composite(small, ((size - nw) // 2, (size - nh) // 2))
+        quantize(canvas).save(out_dir / f"{cid}.png")
+
+
+def process_title(raw_path: Path, out_path: Path) -> None:
+    """裁到 3:2 并缩放到 1536×1024；可读性交给 UI 的暗色渐变遮罩。"""
+    img = Image.open(raw_path).convert("RGB")
+    w, h = img.size
+    target = 3 / 2
+    if w / h > target:
+        nw = int(h * target)
+        left = (w - nw) // 2
+        img = img.crop((left, 0, left + nw, h))
+    else:
+        nh = int(w / target)
+        top = (h - nh) // 2
+        img = img.crop((0, top, w, top + nh))
+    img = img.resize((1536, 1024), Image.LANCZOS)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out_path)
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--raw", default=".art-cache/raw")
+    ap.add_argument("--out", default="public/assets")
+    ap.add_argument("--meta", default="src/ui/rasterMeta.generated.ts")
+    ap.add_argument("--only", nargs="*", default=None)
+    ap.add_argument("--extras", action="store_true")
+    args = ap.parse_args(argv)
+
+    raw = Path(args.raw)
+    out = Path(args.out)
+    ids = args.only or CHARACTER_IDS
+    entries: list[dict] = []
+    failed = 0
+    for cid in ids:
+        try:
+            entries.append(process_character(raw, cid, out / "characters", out / "portraits"))
+            print("OK", cid)
+        except Exception as exc:  # noqa: BLE001 - 逐角色报告，不中断批量
+            failed += 1
+            print("FAIL", cid, exc, file=sys.stderr)
+
+    # --only 用于质量闸门：只生成单角色，不覆盖 14 条元数据。
+    # 全量时也必须 14 个都成功才重写，避免失败角色从元数据里消失。
+    if args.only is None and len(entries) == len(CHARACTER_IDS):
+        write_metadata(entries, Path(args.meta))
+
+    if args.extras:
+        try:
+            # 远端把 extras 写在 raw/extras/ 下，和角色目录平级
+            process_icons(raw / "extras" / "icons.png", out / "icons")
+            process_title(raw / "extras" / "title.png", out / "art" / "title.png")
+            print("OK extras")
+        except Exception as exc:  # noqa: BLE001
+            failed += 1
+            print("FAIL extras", exc, file=sys.stderr)
+
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
