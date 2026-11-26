@@ -1700,6 +1700,8 @@ git commit -m "feat(ui): player class sizes and vector fallback ids
 Co-Authored-By: Claude Code <noreply@anthropic.com>"
 ```
 
+> **Post-review note:** the five class ids and the `player` fallback are derived from a single `PLAYER_CLASSES` list; `frameShapes`/`spriteFrameCount`/`drawSprite` map ids through `vectorIdFor` internally. A separate `chore` commit (`918ff15`) captured the previously untracked vector-migration baseline (`vector.ts`, `anim.ts`, `bullets.ts`, `characters.ts`, `rig.ts`, modified core files) so the branch is buildable from HEAD.
+
 ---
 
 ## Task 9: 动画层接入位图与 atkDur
