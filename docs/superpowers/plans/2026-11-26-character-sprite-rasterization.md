@@ -1385,6 +1385,8 @@ git commit -m "feat(art): local Colab orchestration for sprite generation
 Co-Authored-By: Claude Code <noreply@anthropic.com>"
 ```
 
+> **Post-review note:** reruns clear stale `status.json`/`raw.zip` and abort if a generator is still running; the remote job is launched as a grouped `nohup … & echo $!` so the real PID is captured, and a dead PID fails fast with `gen.log` while a timeout kills it; `finished` is only written after the archive exists; downloads go through `testzip()` + atomic swap so the old cache survives a corrupt zip; unknown/zero-job `--only` ids fail loudly; dry-run prints the exact argv. Verified directly (compile, 7-line dry-run, bare `--only` exits 2).
+
 ---
 
 ## Task 7: 运行时 raster 模块
