@@ -1,5 +1,5 @@
 import { RNG } from '../engine/rng';
-import { defaultStats, STAGE_ORDER,
+import { defaultStats, STAGE_ORDER, newSlotResource,
   type RunState, type Loadout, type PlayerStats, type Rule, type School,
   type ActiveRule, type Ctx, newDamageOp } from '../core/types';
 import { WEAPON_BY_ID } from '../data/weapons';
@@ -11,6 +11,16 @@ import { makeOpSink, applyEffect } from '../engine/effects';
 export function createRunState(seed: number, characterId: string, mapId: string): RunState {
   const rng = new RNG(seed);
   const slots: RunState['slots'] = [null, null, null];
+  // 每个角色都有随身初始武器，进游戏即可攻击（商店仍可在第 2/3 格扩展构筑）
+  const char = CHARACTER_BY_ID[characterId];
+  if (char) {
+    const def = WEAPON_BY_ID[char.start.weapon];
+    if (def) {
+      const res = newSlotResource();
+      if (def.magSize > 0) res.ammo = def.magSize; // 枪械满弹匣开局
+      slots[0] = { weaponId: def.id, star: char.start.star, res };
+    }
+  }
   return {
     seed, rng, phase: 'shop', wave: 1, gold: 15, hp: 100,
     characterId, mapId, slots, passives: [], consumables: {},

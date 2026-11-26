@@ -11,6 +11,8 @@ import { ZOMBIE_BY_ID } from './data/zombies';
 import { TALENTS, CURSES } from './data/rules.content';
 import { createInput, consumeEdges } from './ui/input';
 import { renderFrame } from './ui/render';
+import { spawnBullet, advanceBullets, type Bullet, type BulletHit } from './game/bullets';
+import { spawnImpact, tickImpacts, type Impact } from './ui/bullets';
 import { Screens, type ScreenAction } from './ui/screens';
 import { tickResources, canFire, consumeFire, startReload, startCharge,
   releaseCharge, placeDeployable, onPlayerHit, magSize } from './engine/abilities';
@@ -25,7 +27,7 @@ export function boot(): boolean {
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
-ctx.imageSmoothingEnabled = false;
+ctx.imageSmoothingEnabled = true;
 const overlay = document.getElementById('overlay')!;
 const input = createInput(canvas);
 const bus = new EventBus();
@@ -47,6 +49,10 @@ let needReplace: number | undefined;
 let spawnQueue: string[] = [];
 let spawnTimer = 0;
 let playerShield = 0;
+/** 飞行中的子弹：纯视觉层，伤害已在开火时结算 */
+let bullets: Bullet[] = [];
+/** 命中爆裂特效（纯视觉） */
+let impacts: Impact[] = [];
 let last = performance.now();
 
 // 回血必须落到玩家实体上：否则 run.hp 与 world.entities[0].hp 脱钩，
@@ -133,17 +139,15 @@ function refreshLoadout(): void {
 function startRun(characterId: string, mapId: string): void {
   bus.clear();
   run = createRunState(Date.now() & 0xffffff, characterId, mapId);
-  // 角色开局奖励按 UI 描述发放
+  // 角色开局奖励按 UI 描述发放（随身武器由 createRunState 统一发放）
   if (characterId === 'veteran') run.gold += 6;
-  if (characterId === 'wizard') {
-    const res = newSlotResource();
-    run.slots[0] = { weaponId: 'firestaff', star: 2, res };
-  }
   world = new World(run, bus);
   arena = new Arena(mapId);
   pendingForcedBoss = false;
   needReplace = undefined;
   playerShield = 0;
+  bullets = [];
+  impacts = [];
   paused = false;
   refreshLoadout();
   setupWorld();
@@ -276,18 +280,6 @@ function blocked(x: number, y: number): boolean {
 function arenaObjects(): ArenaObject[] {
   return [...arena.barriers, ...arena.barrels, ...arena.boxes].filter(o => o.hp > 0);
 }
-function aimObject(px: number, py: number, angle: number, range: number):
-  { o: ArenaObject; d: number } | null {
-  let hit: { o: ArenaObject; d: number } | null = null;
-  for (const o of arenaObjects()) {
-    const cx = o.x + o.w / 2, cy = o.y + o.h / 2;
-    const d = Math.hypot(cx - px, cy - py);
-    const oa = Math.atan2(cy - py, cx - px);
-    if (d > range || Math.abs(Math.atan2(Math.sin(oa - angle), Math.cos(oa - angle))) > 0.22) continue;
-    if (!hit || d < hit.d) hit = { o, d };
-  }
-  return hit;
-}
 function spawnObjectEffect(o: ArenaObject, res: string): void {
   if (res !== 'explosion' && res !== 'shock') return;
   world.spawned.push({ what: res === 'explosion' ? 'explosion' : 'arc', n: 1,
@@ -303,6 +295,8 @@ function updateCombat(dt: number): void {
   if (input.keys.has('a') || input.keys.has('arrowleft')) dx -= 1;
   if (input.keys.has('d') || input.keys.has('arrowright')) dx += 1;
   const len = Math.hypot(dx, dy) || 1;
+  p.data['moving'] = (dx !== 0 || dy !== 0) ? 1 : 0;
+  if (dx !== 0 || dy !== 0) p.data['walk'] = (p.data['walk'] ?? 0) + dt;
   const sniperSlow = run.slots[run.activeSlot]?.weaponId === 'sniper' && input.mouseDown ? 0.55 : 1;
   const step = loadout.stats.moveSpeed * sniperSlow * dt;
   const nx = Math.max(16, Math.min(GAME_W - 16, p.x + dx / len * step));
@@ -339,7 +333,9 @@ function updateCombat(dt: number): void {
     if ((behaviour !== 'spitter' || d >= 220) && d > e.radius + p.radius) {
       e.x += Math.cos(e.facing) * e.speed * dt;
       e.y += Math.sin(e.facing) * e.speed * dt;
-    }
+      e.data['moving'] = 1;
+      e.data['walk'] = (e.data['walk'] ?? 0) + dt;
+    } else e.data['moving'] = 0;
     e.data['attack'] = (e.data['attack'] ?? 0) - dt;
     e.data['summon'] = (e.data['summon'] ?? 0) - dt;
     e.data['fireCd'] = (e.data['fireCd'] ?? 0) - dt;
@@ -347,17 +343,20 @@ function updateCombat(dt: number): void {
       const dmg = (def?.boss ? 16 : 8) * loadout.stats.playerDamageTakenMult;
       if (playerShield <= 0) p.hp -= dmg;
       e.data['attack'] = 0.8;
+      e.data['atkT'] = 0.3; // 前扑动作
       if (slot) onPlayerHit(slot, loadout.stats.comboKeepOnHit);
       world.float(p.x, p.y - 16, `-${Math.round(dmg)}`);
     }
     if (behaviour === 'spitter' && (e.data['attack'] ?? 0) <= 0 && d < 320) {
       e.data['attack'] = 2.2;
+      e.data['atkT'] = 0.45; // 鼓喉喷酸动作
       world.float(e.x, e.y - 12, '酸');
       if (playerShield <= 0) p.hp -= 4;
     }
     // 召唤者 / 尸潮之母持续生成小怪，必须优先击杀
     if ((behaviour === 'summoner' || e.tags.includes('summons')) && (e.data['summon'] ?? 0) <= 0) {
       e.data['summon'] = def?.boss ? 5 : 4;
+      e.data['atkT'] = 0.6; // 举杖召唤动作
       spawnQueue.push('walker', 'walker');
     }
   }
@@ -370,9 +369,18 @@ function updateCombat(dt: number): void {
     e.data['attack'] = (e.data['attack'] ?? 0) - dt;
     if (target && (e.data['attack'] ?? 0) <= 0) {
       e.data['attack'] = 0.5;
+      e.data['atkT'] = 0.18; // 炮管后坐动作
       const spell = loadout.stats.turretSpell;
-      dealDamage(world, target, newDamageOp((spell ? 16 : 10) * (e.data['bonus'] ?? 1),
-        spell ? 'magic' : 'tech', target.id, spell ? ['spell', 'turret'] : ['turret']));
+      const angle = Math.atan2(target.y - e.y, target.x - e.x);
+      // 炮塔用 tech（蓝色能量弹），符文炮塔用 magic（紫色法术弹）；
+      // 伤害在命中时结算，因此给出真实的目标追踪与射程。
+      bullets.push(spawnBullet(e, angle, 'turret', {
+        base: (spell ? 16 : 10) * (e.data['bonus'] ?? 1),
+        school: spell ? 'magic' : 'tech',
+        tags: spell ? ['spell', 'turret'] : ['turret'],
+        sourceSlot: -1,
+        element: spell ? 'lightning' : null,
+      }, 320, { homingTarget: target.id, homing: 1 }));
     }
   }
 
@@ -393,8 +401,17 @@ function updateCombat(dt: number): void {
 
   consumeSpawns();
   world.sweepDead();
+  // 动作计时器（受击闪红 / 攻击动作）逐帧衰减
+  for (const e of world.entities) {
+    if ((e.data['hitT'] ?? 0) > 0) e.data['hitT'] = Math.max(0, e.data['hitT'] - dt);
+    if ((e.data['atkT'] ?? 0) > 0) e.data['atkT'] = Math.max(0, e.data['atkT'] - dt);
+  }
   for (const f of world.floating) f.time -= dt;
   world.floating = world.floating.filter(f => f.time > 0);
+  const flight = advanceBullets(bullets, dt, world.entities, arenaObjects());
+  bullets = flight.alive;
+  resolveBulletHits(flight.hits);
+  impacts = tickImpacts(impacts, dt);
   arena.tick(dt);
   playerShield = Math.max(0, playerShield - dt);
   run.hp = p.hp;
@@ -440,6 +457,7 @@ function fireInput(slot: NonNullable<RunState['slots'][number]>,
 }
 
 function swing(p: Entity, def: (typeof WEAPON_BY_ID)[string], power: number, heavy: boolean): void {
+  p.data['atkT'] = heavy ? 0.32 : 0.18; // 挥砍动作时长
   const range = def.range + loadout.stats.meleeRangeAdd;
   for (const o of arenaObjects()) {
     if (Math.hypot(o.x + o.w / 2 - p.x, o.y + o.h / 2 - p.y) > range + 12) continue;
@@ -465,38 +483,58 @@ function swing(p: Entity, def: (typeof WEAPON_BY_ID)[string], power: number, hea
   }
 }
 function shoot(p: Entity, def: (typeof WEAPON_BY_ID)[string]): void {
+  p.data['atkT'] = 0.12; // 开火/施法动作时长
   const pellets = def.id === 'shotgun' ? 5 : 1;
   // 智能瞄准（枪 + 科技）：放宽命中锥角，实现「子弹弱追踪」
   const aimTolerance = 0.16 + loadout.stats.bulletHoming * 0.12;
+  // 弹丸的基础标签与元素在这里确定；伤害在命中瞬间才结算，
+  // 因此 DamageOp 必须延后到碰撞回调里构造，否则规则会绑错目标。
+  const tags: ('bullet' | 'spell' | 'elemental')[] = def.school === 'gun' ? ['bullet'] : ['spell'];
+  let element = def.element;
+  if (def.school === 'gun' && loadout.stats.enchantedBullets) {
+    const magic = run.slots.map(s => s ? WEAPON_BY_ID[s.weaponId] : null)
+      .find(w => w && w.school === 'magic' && w.element);
+    if (magic?.element) element = magic.element;
+    if (!tags.includes('elemental')) tags.push('elemental');
+  }
   for (let i = 0; i < pellets; i++) {
     const a = p.facing + (pellets > 1 ? (i - 2) * 0.11 : 0);
-    let best: Entity | null = null, bestD = def.range;
+    // 追踪目标：命中锥内最近的僵尸（没有就直线飞）
+    let homingTarget: number | null = null, bestD = def.range;
     for (const e of world.entities) {
       if (e.id === 1 || e.dead || e.tags.includes('deployable')) continue;
       const d = Math.hypot(e.x - p.x, e.y - p.y);
       const ea = Math.atan2(e.y - p.y, e.x - p.x);
-      if (d < bestD && Math.abs(Math.atan2(Math.sin(ea - a), Math.cos(ea - a))) < aimTolerance) { best = e; bestD = d; }
+      if (d < bestD && Math.abs(Math.atan2(Math.sin(ea - a), Math.cos(ea - a))) < aimTolerance) {
+        homingTarget = e.id; bestD = d;
+      }
     }
-    const oh = aimObject(p.x, p.y, a, def.range);
-    if (oh && (!best || oh.d < bestD)) {
-      const res = damageObject(oh.o, def.baseDamage);
-      if (res) spawnObjectEffect(oh.o, res);
-      world.float(oh.o.x + oh.o.w / 2, oh.o.y + oh.o.h / 2 - 10, '×');
+    bullets.push(spawnBullet(p, a, def.sprite,
+      { base: def.baseDamage, school: def.school, tags, sourceSlot: run.activeSlot, element },
+      def.range, { homingTarget, homing: loadout.stats.bulletHoming }));
+  }
+}
+
+/** 子弹命中结算：这里才构造 DamageOp，规则才会绑定到真正的目标。 */
+function resolveBulletHits(hits: BulletHit[]): void {
+  for (const h of hits) {
+    const b = h.bullet;
+    if (h.solid) {
+      // 爆裂尺寸按弹头大小与是否法术区分，重武器打击感更强
+      impacts.push(spawnImpact(b.x, b.y, b.color, b.glow * 1.6));
+      const res = damageObject(h.solid, b.base);
+      if (res) spawnObjectEffect(h.solid, res);
+      world.float(h.solid.x + h.solid.w / 2, h.solid.y + h.solid.h / 2 - 10, '×');
       continue;
     }
-    if (!best) continue;
-    const tags: ('bullet' | 'spell' | 'elemental')[] = def.school === 'gun' ? ['bullet'] : ['spell'];
-    const op = newDamageOp(def.baseDamage, def.school, best.id, tags, run.activeSlot);
-    if (def.element) op.element = def.element;
-    // 附魔子弹：取已装备魔法武器的元素，让子弹真的挂上灼烧/冻结/导电
-    if (def.school === 'gun' && loadout.stats.enchantedBullets) {
-      const magic = run.slots.map(s => s ? WEAPON_BY_ID[s.weaponId] : null)
-        .find(w => w && w.school === 'magic' && w.element);
-      if (magic?.element) op.element = magic.element;
-      if (!op.tags.includes('elemental')) op.tags.push('elemental');
-    }
-    dealDamage(world, best, op, frontOf(best, p));
-    world.float(best.x, best.y - 10, '·');
+    const e = h.entity;
+    if (!e || e.dead) continue;
+    impacts.push(spawnImpact(b.x, b.y, b.color, b.glow * 1.6));
+    const op = newDamageOp(b.base, b.school, e.id, b.tags, b.sourceSlot);
+    if (b.element) op.element = b.element;
+    // 持盾僵尸正面免疫：用它被击中时相对开火点的朝向判断
+    dealDamage(world, e, op, frontOf(e, { x: b.fromX, y: b.fromY } as Entity));
+    world.float(e.x, e.y - 10, '·');
   }
 }
 function useConsumable(p: Entity): void {
@@ -527,7 +565,7 @@ function loop(now: number): void {
     else if (phase === 'shop' && input.refresh) { refreshShop(run); screens.shop(run, loadout); }
   }
   renderFrame(ctx, { run, world, arena, stats: loadout.stats, mouse: input.mouse,
-    phase, dt, loadout });
+    phase, dt, loadout, bullets, impacts });
   consumeEdges(input);
   requestAnimationFrame(loop);
 }

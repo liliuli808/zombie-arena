@@ -1,8 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { createRunState, resolveLoadout } from './state';
 import { WEAPON_BY_ID } from '../data/weapons';
+import { CHARACTER_BY_ID } from '../data/characters';
 import { RNG } from '../engine/rng';
 import { newSlotResource, type EquipSlot } from '../core/types';
+
+const CHARACTER_SCHOOL = Object.fromEntries(
+  Object.entries(CHARACTER_BY_ID).map(([id, c]) => [id, c.school]));
 
 function run() { return createRunState(42, 'veteran', 'yard'); }
 function equip(r: ReturnType<typeof run>, ids: (string | null)[], stars: (1|2|3)[] = [1,1,1]) {
@@ -10,12 +14,25 @@ function equip(r: ReturnType<typeof run>, ids: (string | null)[], stars: (1|2|3)
 }
 
 describe('createRunState', () => {
-  it('starts at wave 1 in shop with 3 empty slots and seeded RNG', () => {
+  it('starts at wave 1 in shop with the character starting weapon and seeded RNG', () => {
     const r = run();
     expect(r.wave).toBe(1); expect(r.phase).toBe('shop');
-    expect(r.slots).toEqual([null, null, null]);
+    // 老兵随身手枪（满弹匣），保证进游戏即可攻击
+    expect(r.slots[0]?.weaponId).toBe('pistol');
+    expect(r.slots[0]?.star).toBe(1);
+    expect(r.slots[0]?.res.ammo).toBe(WEAPON_BY_ID['pistol'].magSize);
+    expect(r.slots.slice(1)).toEqual([null, null]);
     expect(r.rng).toBeDefined();
     expect(createRunState(42, 'veteran', 'yard').rng.next()).toBe(new RNG(42).next());
+  });
+  it('grants each character a usable starting weapon', () => {
+    for (const [charId, weaponId] of [['wizard', 'firestaff'], ['engineer', 'turret'],
+      ['ronin', 'shortknife'], ['jailer', 'bat']] as const) {
+      const r = createRunState(7, charId, 'yard');
+      expect(r.slots[0]?.weaponId, charId).toBe(weaponId);
+      expect(WEAPON_BY_ID[r.slots[0]!.weaponId].school)
+        .toBe(CHARACTER_SCHOOL[charId]);
+    }
   });
 });
 

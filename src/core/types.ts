@@ -129,6 +129,8 @@ export interface ZombieDef {
 export interface CharacterDef {
   id: string; name: string; school: School; desc: string;
   rules: Rule[]; shopBias: School; cost: number;
+  /** 开局随身武器（第 0 格），保证进游戏即可攻击 */
+  start: { weapon: string; star: 1 | 2 | 3 };
 }
 export interface PassiveDef { id: string; name: string; price: number; rules: Rule[]; desc: string }
 export interface ConsumableDef { id: string; name: string; price: number; desc: string }

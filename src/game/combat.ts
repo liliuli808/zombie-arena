@@ -94,6 +94,7 @@ export function dealDamage(w: World, target: Entity, op: DamageOp, frontFacing =
   const amount = finalDamage(op);
   if (amount > 0) {
     target.hp -= amount;
+    target.data['hitT'] = 0.22; // 受击闪红，由渲染层消费
     w.float(target.x, target.y - 14, String(Math.round(amount)));
     w.bus.emit('onDamage', { ctx, amount });
     if (op.element) {

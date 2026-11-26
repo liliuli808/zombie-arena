@@ -40,9 +40,9 @@ describe('refreshShop / toggleLock', () => {
 
 describe('buyItem', () => {
   it('equips into the first empty slot', () => {
-    const r = run(); r.shop.items = [{ id: 'pistol', kind: 'weapon', price: 3, locked: false }];
+    const r = run(); r.shop.items = [{ id: 'shotgun', kind: 'weapon', price: 3, locked: false }];
     expect(buyItem(r, 0)).toBe('equipped');
-    expect(r.slots[0]?.weaponId).toBe('pistol');
+    expect(r.slots[1]?.weaponId).toBe('shotgun'); // 第 0 格已有老兵随身手枪
     expect(r.gold).toBe(12);
   });
   it('upgrades a duplicate to the next star without taking a slot', () => {
