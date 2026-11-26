@@ -64,10 +64,12 @@ export function clipFrame(sheet: LoadedSheet, clip: ClipId, phase: number): numb
   if (!frames || frames.length === 0) return 0;
   if (clip === 'idle' || clip === 'hit' || clip === 'death') return frames[0]!;
   if (clip === 'walk') {
-    const i = Math.floor(phase * sheet.walkFps) % frames.length;
+    const n = frames.length;
+    // 归一化到 [0, len-1]：负数相位与超长相位都不会越界，同时保留循环换帧
+    const i = ((Math.floor(phase * sheet.walkFps) % n) + n) % n;
     return frames[i]!;
   }
-  const i = Math.min(frames.length - 1, Math.floor(phase * frames.length));
+  const i = Math.min(frames.length - 1, Math.max(0, Math.floor(phase * frames.length)));
   return frames[i]!;
 }
 

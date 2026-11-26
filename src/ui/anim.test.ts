@@ -49,6 +49,14 @@ describe('drawEntity raster path', () => {
     drawEntity(stubCtx(calls), p, 0);
     expect(calls).toContain('fillRect');
   });
+
+  it('still draws when atkT exceeds atkDur (clamped phase)', () => {
+    __setRasterForTest('walker', SHEET);
+    const calls: string[] = [];
+    drawEntity(stubCtx(calls), { ...zombie(), id: 3,
+      data: { moving: 0, walk: 0, atkT: 0.5, atkDur: 0.3 } }, 0);
+    expect(calls).toContain('drawImage');
+  });
 });
 
 describe('drawDeath', () => {

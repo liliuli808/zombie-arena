@@ -32,7 +32,6 @@ interface PoseOpts {
   hit: number;
   time: number;
   id: number;
-  atkDur: number;
 }
 
 /** 像素精灵的步态选帧：静止用第 0 帧，行走在其余帧之间交替。
@@ -85,7 +84,7 @@ export function drawEntity(ctx: CanvasRenderingContext2D, e: Entity, time: numbe
   const sheet = rasterFor(id);
   if (sheet) {
     const clip = pickClip({ dead: e.dead, hitT, atkT, moving });
-    const phase = clip === 'attack' ? 1 - atkT / Math.max(0.01, atkDur)
+    const phase = clip === 'attack' ? Math.max(0, 1 - atkT / Math.max(0.01, atkDur))
       : clip === 'walk' ? walk : 0;
     const frame = clipFrame(sheet, clip, phase);
     const bob = clip === 'idle' ? (Math.sin(time * 4 + e.id) > 0 ? -1 : 0) : 0;
@@ -96,7 +95,7 @@ export function drawEntity(ctx: CanvasRenderingContext2D, e: Entity, time: numbe
     ctx.save();
     ctx.translate(Math.round(e.x + Math.cos(e.facing) * lunge), Math.round(e.y - hover));
     if (Math.cos(e.facing) < 0) ctx.scale(-1, 1);
-    drawPosedSprite(ctx, id, size, { walk, moving, atk, hit, time, id: e.id, atkDur });
+    drawPosedSprite(ctx, id, size, { walk, moving, atk, hit, time, id: e.id });
     ctx.restore();
   }
 
@@ -121,7 +120,7 @@ export function drawDeath(ctx: CanvasRenderingContext2D,
   ctx.save();
   ctx.globalAlpha = alpha;
   if (sheet) {
-    const frame = sheet.clips.death[0] ?? 8;
+    const frame = sheet.clips.death[0] ?? 0;
     drawRasterFrame(ctx, sheet, frame, d.x, d.y, size, Math.cos(d.facing) < 0);
   } else {
     drawSprite(ctx, vectorIdFor(d.kind), d.x, d.y, 1, 0);
