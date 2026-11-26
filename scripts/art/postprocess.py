@@ -176,3 +176,75 @@ def add_outline(img: Image.Image, color: tuple[int, int, int] = OUTLINE) -> Imag
             if near:
                 out[y, x] = (*color, 255)
     return Image.fromarray(out, "RGBA")
+
+
+def make_portrait(cell: Image.Image, path: Path, size: int = 160, content_h: int = 150) -> None:
+    cut = cut_out(cell)
+    w0, h0 = cut.size
+    scale = min(content_h / h0, (size - 4) / w0)
+    nw, nh = max(1, round(w0 * scale)), max(1, round(h0 * scale))
+    small = cut.resize((nw, nh), Image.LANCZOS)
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    canvas.alpha_composite(small, ((size - nw) // 2, size - 2 - nh))
+    out = add_outline(quantize(canvas))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    out.save(path)
+
+
+def process_character(raw_dir: Path, cid: str, chars_dir: Path,
+                      portraits_dir: Path) -> dict:
+    """raw_dir/<cid>/{walk,act,hurt}.png -> 角色表 + 肖像 + 元数据。"""
+    raw = raw_dir / cid
+    walk = split_cells(Image.open(raw / "walk.png").convert("RGBA"))
+    act = split_cells(Image.open(raw / "act.png").convert("RGBA"))
+    hurt = split_cells(Image.open(raw / "hurt.png").convert("RGBA"))
+    selected = [
+        walk[0], walk[1], walk[2], walk[3],
+        act[1], act[2], act[3],
+        hurt[1], hurt[3],
+    ]
+    cuts = [cut_out(c) for c in selected]
+    fitted, _ = fit_frames(cuts)
+    frames = [add_outline(quantize(f)) for f in fitted]
+
+    for i, f in enumerate(frames):
+        a = np.array(f)[:, :, 3]
+        ys, xs = np.where(a > 0)
+        if len(ys) == 0:
+            raise ValueError(f"{cid} frame {i} is empty")
+        if int(xs.min()) < 0 or int(xs.max()) >= VIEW or int(ys.min()) < 0 or int(ys.max()) >= VIEW:
+            raise ValueError(f"{cid} frame {i} is out of bounds")
+
+    sheet = Image.new("RGBA", (VIEW * FRAMES, VIEW), (0, 0, 0, 0))
+    for i, f in enumerate(frames):
+        sheet.alpha_composite(f, (i * VIEW, 0))
+    chars_dir.mkdir(parents=True, exist_ok=True)
+    sheet.save(chars_dir / f"{cid}.png")
+    make_portrait(walk[0], portraits_dir / f"{cid}.png")
+
+    return {
+        "id": cid,
+        "src": f"/assets/characters/{cid}.png",
+        "view": VIEW,
+        "frames": FRAMES,
+        "walkFps": 6 if cid in SLOW_IDS else 8,
+        "clips": CLIPS,
+    }
+
+
+def write_metadata(entries: list[dict], path: Path) -> None:
+    lines = [
+        "// 由 scripts/art/postprocess.py 生成，请勿手改。",
+        "import type { RasterMeta } from './raster';",
+        "",
+        "export const RASTER_META: Record<string, RasterMeta> = {",
+    ]
+    for e in entries:
+        clips = json.dumps(e["clips"], separators=(", ", ": "))
+        lines.append(
+            f'  {e["id"]}: {{ src: \'{e["src"]}\', view: {e["view"]}, '
+            f'frames: {e["frames"]}, walkFps: {e["walkFps"]}, clips: {clips} }},'
+        )
+    lines += ["};", ""]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines))

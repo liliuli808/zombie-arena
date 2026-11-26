@@ -106,5 +106,41 @@ class QuantizeTests(unittest.TestCase):
         self.assertEqual(out.getpixel((0, 0)), (0, 0, 0, 0))
 
 
+class ProcessCharacterTests(unittest.TestCase):
+    def test_process_character_writes_9_frame_sheet_and_portrait(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            raw = root / "raw" / "walker"
+            raw.mkdir(parents=True)
+            for name in ("walk", "act", "hurt"):
+                make_cell_sheet(raw / f"{name}.png")
+            chars = root / "characters"
+            portraits = root / "portraits"
+            meta = pp.process_character(raw.parent, "walker", chars, portraits)
+            sheet = Image.open(chars / "walker.png")
+            self.assertEqual(sheet.size, (432, 48))
+            arr = np.array(sheet.convert("RGBA"))
+            for i in range(9):
+                alpha = arr[:, i * 48:(i + 1) * 48, 3]
+                self.assertGreater((alpha > 0).mean(), 0.03)
+            self.assertEqual(meta["id"], "walker")
+            self.assertEqual(meta["frames"], 9)
+            self.assertEqual(meta["clips"]["walk"], [0, 1, 2, 3])
+            self.assertEqual(Image.open(portraits / "walker.png").size, (160, 160))
+
+    def test_write_metadata_emits_typescript(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "rasterMeta.generated.ts"
+            pp.write_metadata([
+                {"id": "walker", "src": "/assets/characters/walker.png",
+                 "view": 48, "frames": 9, "walkFps": 8, "clips": pp.CLIPS},
+            ], out)
+            text = out.read_text()
+            self.assertIn("import type { RasterMeta } from './raster';", text)
+            self.assertIn("walker:", text)
+            self.assertIn("/assets/characters/walker.png", text)
+            self.assertIn('"walk": [0, 1, 2, 3]', text)
+
+
 if __name__ == "__main__":
     unittest.main()
