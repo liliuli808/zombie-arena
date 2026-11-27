@@ -14,6 +14,10 @@ import { renderFrame } from './ui/render';
 import { preloadRasterSheets } from './ui/raster';
 import { spawnBullet, advanceBullets, type Bullet, type BulletHit } from './game/bullets';
 import { spawnImpact, tickImpacts, type Impact } from './ui/bullets';
+import {
+  createVfx, resetVfx, tickVfx, addShake, triggerHurtFlash,
+  spawnBurst, spawnMuzzleFlash, spawnShockwave, spawnDecal,
+} from './ui/vfx';
 import { Screens, type ScreenAction } from './ui/screens';
 import { tickResources, canFire, consumeFire, startReload, startCharge,
   releaseCharge, placeDeployable, onPlayerHit, magSize } from './engine/abilities';
@@ -50,10 +54,12 @@ let needReplace: number | undefined;
 let spawnQueue: string[] = [];
 let spawnTimer = 0;
 let playerShield = 0;
-/** 飞行中的子弹：纯视觉层，伤害已在开火时结算 */
+/** 飞行中的子弹：纯视觉层，伤害已在命中瞬间结算 */
 let bullets: Bullet[] = [];
 /** 命中爆裂特效（纯视觉） */
 let impacts: Impact[] = [];
+/** 粒子 / 震屏 / 地面残痕等全局视觉状态 */
+const vfx = createVfx();
 let last = performance.now();
 
 // 回血必须落到玩家实体上：否则 run.hp 与 world.entities[0].hp 脱钩，
@@ -149,6 +155,7 @@ function startRun(characterId: string, mapId: string): void {
   playerShield = 0;
   bullets = [];
   impacts = [];
+  resetVfx(vfx);
   paused = false;
   refreshLoadout();
   setupWorld();
@@ -169,6 +176,7 @@ function startWave(): void {
   phase = 'combat'; run.phase = 'combat';
   screens.clear();
   refreshLoadout();
+  resetVfx(vfx);
   const force = pendingForcedBoss;
   pendingForcedBoss = false;
   const plan = composeWave(run.wave, run.rng, force, run.nextWavePreview);
@@ -248,18 +256,35 @@ function consumeSpawns(): void {
     } else if (s.what === 'firePatch') {
       for (const f of fireSpread(arena)) if (arena.fires.length < 8) arena.fires.push(f);
     } else if (s.what === 'fog') {
-      // 毒雾靠 arena.tick() 缩圈；这里只是消费掉声明式规则产生的 spawn，
-      // 保证每种 spawn 都有归属，不会被静默丢弃。
       arena.weather = 'fog';
     } else if (s.what === 'explosion' || s.what === 'arc') {
-      const radius = s.what === 'explosion' ? 90 : 150;
-      const dmg = s.what === 'explosion' ? 40 : 16;
-      const tag = s.what === 'explosion' ? 'explosion' : 'arc';
+      const isExp = s.what === 'explosion';
+      const radius = isExp ? 90 : 150;
+      const dmg = isExp ? 40 : 16;
+      const tag = isExp ? 'explosion' : 'arc';
+      // 爆炸 / 电弧视觉反馈
+      spawnShockwave(vfx, x, y, 10, radius, isExp ? '#ff8a3d' : '#7ae3ff', 0.32, isExp ? 4.5 : 3);
+      spawnMuzzleFlash(vfx, x, y, isExp ? '#ffb84d' : '#8fdcff', radius * 0.9, 0.16);
+      spawnBurst(vfx, x, y, isExp ? '#ff8a3d' : '#ffe066', isExp ? 20 : 12, {
+        speedMin: 60, speedMax: 220, sizeMin: 2.5, sizeMax: 5, life: 0.42, glow: true,
+      });
+      if (isExp) {
+        spawnDecal(vfx, x, y, 26, '#0c0a0a', 0.46, 18);
+        addShake(vfx, 7.5);
+      } else {
+        addShake(vfx, 3);
+      }
       for (const e of world.entities) {
         if (e.dead || e.tags.includes('deployable')) continue;
         if (Math.hypot(e.x - x, e.y - y) > radius) continue;
-        if (e.id === 1) { if (s.hostile && playerShield <= 0) e.hp -= dmg * 0.4; }
-        else dealDamage(world, e, newDamageOp(dmg, 'tech', e.id, [tag]));
+        if (e.id === 1) {
+          if (s.hostile && playerShield <= 0) {
+            e.hp -= dmg * 0.4;
+            triggerHurtFlash(vfx, 0.7);
+          }
+        } else {
+          dealDamage(world, e, newDamageOp(dmg, 'tech', e.id, [tag]));
+        }
       }
     }
   }
@@ -342,7 +367,10 @@ function updateCombat(dt: number): void {
     e.data['fireCd'] = (e.data['fireCd'] ?? 0) - dt;
     if (d < e.radius + p.radius + 4 && (e.data['attack'] ?? 0) <= 0) {
       const dmg = (def?.boss ? 16 : 8) * loadout.stats.playerDamageTakenMult;
-      if (playerShield <= 0) p.hp -= dmg;
+      if (playerShield <= 0) {
+        p.hp -= dmg;
+        triggerHurtFlash(vfx, def?.boss ? 0.9 : 0.6);
+      }
       e.data['attack'] = 0.8;
       e.data['atkT'] = 0.3; // 前扑动作
       e.data['atkDur'] = 0.3;
@@ -354,13 +382,18 @@ function updateCombat(dt: number): void {
       e.data['atkT'] = 0.45; // 鼓喉喷酸动作
       e.data['atkDur'] = 0.45;
       world.float(e.x, e.y - 12, '酸');
-      if (playerShield <= 0) p.hp -= 4;
+      spawnBurst(vfx, p.x, p.y, '#84d86a', 8, { speedMin: 30, speedMax: 110, life: 0.35, glow: true });
+      if (playerShield <= 0) {
+        p.hp -= 4;
+        triggerHurtFlash(vfx, 0.35);
+      }
     }
     // 召唤者 / 尸潮之母持续生成小怪，必须优先击杀
     if ((behaviour === 'summoner' || e.tags.includes('summons')) && (e.data['summon'] ?? 0) <= 0) {
       e.data['summon'] = def?.boss ? 5 : 4;
       e.data['atkT'] = 0.6; // 举杖召唤动作
       e.data['atkDur'] = 0.6;
+      spawnShockwave(vfx, e.x, e.y, 8, 42, '#b78bfa', 0.4, 2.5);
       spawnQueue.push('walker', 'walker');
     }
   }
@@ -377,8 +410,6 @@ function updateCombat(dt: number): void {
       e.data['atkDur'] = 0.18;
       const spell = loadout.stats.turretSpell;
       const angle = Math.atan2(target.y - e.y, target.x - e.x);
-      // 炮塔用 tech（蓝色能量弹），符文炮塔用 magic（紫色法术弹）；
-      // 伤害在命中时结算，因此给出真实的目标追踪与射程。
       bullets.push(spawnBullet(e, angle, 'turret', {
         base: (spell ? 16 : 10) * (e.data['bonus'] ?? 1),
         school: spell ? 'magic' : 'tech',
@@ -405,6 +436,24 @@ function updateCombat(dt: number): void {
       && playerShield <= 0) p.hp -= 6 * dt;
 
   consumeSpawns();
+  // 为刚死亡的实体生成一次击杀粒子与地面血渍残痕
+  for (const d of world.deaths) {
+    if (d.t === 0) {
+      const def = ZOMBIE_BY_ID[d.kind];
+      const isBoss = def?.boss ?? false;
+      const color = d.kind === 'spitter' ? '#7fe066'
+        : d.kind === 'summoner' ? '#b78bfa' : '#7ea850';
+      spawnBurst(vfx, d.x, d.y, color, isBoss ? 24 : 10, {
+        speedMin: 40, speedMax: isBoss ? 220 : 135, sizeMin: 2.2, sizeMax: isBoss ? 5.5 : 4, life: 0.45,
+      });
+      spawnDecal(vfx, d.x, d.y + 8, isBoss ? 24 : 12,
+        d.kind === 'spitter' ? '#254a1f' : '#2a361d', 0.42, 16);
+      if (isBoss) {
+        spawnShockwave(vfx, d.x, d.y, 12, 110, '#ff6b57', 0.45, 4);
+        addShake(vfx, 9);
+      }
+    }
+  }
   world.sweepDead();
   world.tickDeaths(dt);
   // 动作计时器（受击闪红 / 攻击动作）逐帧衰减
@@ -418,6 +467,7 @@ function updateCombat(dt: number): void {
   bullets = flight.alive;
   resolveBulletHits(flight.hits);
   impacts = tickImpacts(impacts, dt);
+  tickVfx(vfx, dt, arena.weather);
   arena.tick(dt);
   playerShield = Math.max(0, playerShield - dt);
   run.hp = p.hp;
@@ -449,6 +499,7 @@ function fireInput(slot: NonNullable<RunState['slots'][number]>,
           radius: 10, hp: 40, maxHp: 40, speed: 0, facing: 0, tags: ['deployable'],
           statuses: [], dead: false, ttl: 0,
           data: { attack: 0, bonus: trapBonusAt(arena, x, y) } });
+        spawnShockwave(vfx, x, y, 6, 36, '#4fd1ff', 0.28, 2.5);
         bus.emit('onPlace', { ctx: makeCtx(run, loadout.stats) });
         consumeSpawns();
       }
@@ -463,9 +514,13 @@ function fireInput(slot: NonNullable<RunState['slots'][number]>,
 }
 
 function swing(p: Entity, def: (typeof WEAPON_BY_ID)[string], power: number, heavy: boolean): void {
-  p.data['atkT'] = heavy ? 0.32 : 0.18; // 挥砍动作时长
+  p.data['atkT'] = heavy ? 0.32 : 0.18;
   p.data['atkDur'] = heavy ? 0.32 : 0.18;
   const range = def.range + loadout.stats.meleeRangeAdd;
+  if (heavy) {
+    spawnShockwave(vfx, p.x, p.y, 14, range, '#ff9466', 0.28, 3.5);
+    addShake(vfx, 5.5);
+  }
   for (const o of arenaObjects()) {
     if (Math.hypot(o.x + o.w / 2 - p.x, o.y + o.h / 2 - p.y) > range + 12) continue;
     const res = damageObject(o, def.baseDamage * power);
@@ -481,22 +536,23 @@ function swing(p: Entity, def: (typeof WEAPON_BY_ID)[string], power: number, hea
       heavy ? ['heavy', 'melee', 'breakArmor'] : ['melee'], run.activeSlot);
     if (heavy && loadout.stats.arcOnHeavy) op.tags.push('arc');
     const dmg = dealDamage(world, e, op, frontOf(e, p));
-    if (dmg > 0 && heavy) {
-      const kb = 90 * loadout.stats.knockbackMult;
-      e.x += Math.cos(a) * kb * 0.3; e.y += Math.sin(a) * kb * 0.3;
-      // 蓄力越满眩晕越久；铁锤描述「蓄满眩晕 0.8s」对应约 0.9s 上限
-      world.addStatus(e, 'stun', 1, 0.35 + Math.min(1, power - 1) * 0.55);
+    if (dmg > 0) {
+      spawnBurst(vfx, e.x, e.y, heavy ? '#ff9466' : '#ffe9a8', heavy ? 10 : 5, {
+        angle: a, spread: 1.1, speedMin: 60, speedMax: 170, life: 0.25, glow: true,
+      });
+      if (heavy) {
+        const kb = 90 * loadout.stats.knockbackMult;
+        e.x += Math.cos(a) * kb * 0.3; e.y += Math.sin(a) * kb * 0.3;
+        world.addStatus(e, 'stun', 1, 0.35 + Math.min(1, power - 1) * 0.55);
+      }
     }
   }
 }
 function shoot(p: Entity, def: (typeof WEAPON_BY_ID)[string]): void {
-  p.data['atkT'] = 0.12; // 开火/施法动作时长
+  p.data['atkT'] = 0.12;
   p.data['atkDur'] = 0.12;
   const pellets = def.id === 'shotgun' ? 5 : 1;
-  // 智能瞄准（枪 + 科技）：放宽命中锥角，实现「子弹弱追踪」
   const aimTolerance = 0.16 + loadout.stats.bulletHoming * 0.12;
-  // 弹丸的基础标签与元素在这里确定；伤害在命中瞬间才结算，
-  // 因此 DamageOp 必须延后到碰撞回调里构造，否则规则会绑错目标。
   const tags: ('bullet' | 'spell' | 'elemental')[] = def.school === 'gun' ? ['bullet'] : ['spell'];
   let element = def.element;
   if (def.school === 'gun' && loadout.stats.enchantedBullets) {
@@ -505,9 +561,16 @@ function shoot(p: Entity, def: (typeof WEAPON_BY_ID)[string]): void {
     if (magic?.element) element = magic.element;
     if (!tags.includes('elemental')) tags.push('elemental');
   }
+  // 枪口光晕 + 轻度后坐震屏
+  const mx = p.x + Math.cos(p.facing) * 24;
+  const my = p.y + Math.sin(p.facing) * 24;
+  const flashCol = def.school === 'gun' ? '#ffd24a'
+    : element === 'ice' ? '#8fdcff' : element === 'lightning' ? '#ffe066' : '#ff8a3d';
+  spawnMuzzleFlash(vfx, mx, my, flashCol, def.id === 'shotgun' ? 62 : 42, 0.09);
+  addShake(vfx, def.id === 'sniper' ? 4.5 : def.id === 'shotgun' ? 3.8 : 1.4);
+
   for (let i = 0; i < pellets; i++) {
     const a = p.facing + (pellets > 1 ? (i - 2) * 0.11 : 0);
-    // 追踪目标：命中锥内最近的僵尸（没有就直线飞）
     let homingTarget: number | null = null, bestD = def.range;
     for (const e of world.entities) {
       if (e.id === 1 || e.dead || e.tags.includes('deployable')) continue;
@@ -528,8 +591,8 @@ function resolveBulletHits(hits: BulletHit[]): void {
   for (const h of hits) {
     const b = h.bullet;
     if (h.solid) {
-      // 爆裂尺寸按弹头大小与是否法术区分，重武器打击感更强
       impacts.push(spawnImpact(b.x, b.y, b.color, b.glow * 1.6));
+      spawnBurst(vfx, b.x, b.y, '#ffd24a', 5, { speedMin: 40, speedMax: 130, life: 0.22, glow: true });
       const res = damageObject(h.solid, b.base);
       if (res) spawnObjectEffect(h.solid, res);
       world.float(h.solid.x + h.solid.w / 2, h.solid.y + h.solid.h / 2 - 10, '×');
@@ -538,28 +601,35 @@ function resolveBulletHits(hits: BulletHit[]): void {
     const e = h.entity;
     if (!e || e.dead) continue;
     impacts.push(spawnImpact(b.x, b.y, b.color, b.glow * 1.6));
+    spawnBurst(vfx, b.x, b.y, b.color, 4, {
+      angle: Math.atan2(b.dy, b.dx), spread: 1.2, speedMin: 50, speedMax: 150, life: 0.2, glow: true,
+    });
     const op = newDamageOp(b.base, b.school, e.id, b.tags, b.sourceSlot);
     if (b.element) op.element = b.element;
-    // 持盾僵尸正面免疫：用它被击中时相对开火点的朝向判断
     dealDamage(world, e, op, frontOf(e, { x: b.fromX, y: b.fromY } as Entity));
-    world.float(e.x, e.y - 10, '·');
   }
 }
 function useConsumable(p: Entity): void {
   const id = Object.keys(run.consumables).find(k => run.consumables[k] > 0);
   if (!id) return;
   run.consumables[id] -= 1;
-  if (id === 'medkit') { p.hp = Math.min(loadout.stats.maxHp, p.hp + 35); run.hp = p.hp; }
+  if (id === 'medkit') {
+    p.hp = Math.min(loadout.stats.maxHp, p.hp + 35); run.hp = p.hp;
+    spawnBurst(vfx, p.x, p.y, '#5ce07a', 12, { speedMin: 30, speedMax: 90, life: 0.45, glow: true });
+    world.float(p.x, p.y - 18, '+35');
+  }
   if (id === 'grenade') {
     world.spawned.push({ what: 'explosion', n: 1, x: input.mouse.x, y: input.mouse.y });
     consumeSpawns();
   }
-  if (id === 'shieldkit') playerShield = 3;
+  if (id === 'shieldkit') {
+    playerShield = 3;
+    spawnShockwave(vfx, p.x, p.y, 12, 42, '#4fd1ff', 0.3, 3);
+  }
 }
 
 window.addEventListener('blur', () => {
   paused = true;
-  // 在窗口外松开鼠标不会触发 mouseup，不清会导致回到窗口后自动开火
   input.mouseDown = false; input.rightDown = false; input.keys.clear();
 });
 window.addEventListener('focus', () => { paused = false; last = performance.now(); });
@@ -573,8 +643,11 @@ function loop(now: number): void {
     if (phase === 'combat') updateCombat(dt);
     else if (phase === 'shop' && input.refresh) { refreshShop(run); screens.shop(run, loadout); }
   }
-  renderFrame(ctx, { run, world, arena, stats: loadout.stats, mouse: input.mouse,
-    phase, dt, loadout, bullets, impacts });
+  renderFrame(ctx, {
+    run, world, arena, stats: loadout.stats, mouse: input.mouse,
+    phase, dt, loadout, bullets, impacts, vfx, playerShield,
+    spawnQueueCount: spawnQueue.length,
+  });
   consumeEdges(input);
   requestAnimationFrame(loop);
 }
