@@ -246,11 +246,9 @@ function paintFloor(ctx: CanvasRenderingContext2D, mapId: string): void {
 
   // 3) 主题环境特征
   if (th.feature === 'yard') {
-    // 胎痕与装卸区标线
     ctx.strokeStyle = 'rgba(201, 151, 46, 0.14)';
     ctx.lineWidth = 3;
     ctx.strokeRect(44, 44, GAME_W - 88, GAME_H - 88);
-    // 路面裂纹
     ctx.strokeStyle = 'rgba(6, 8, 12, 0.52)';
     ctx.lineWidth = 1.3;
     for (let i = 0; i < 12; i++) {
@@ -265,7 +263,6 @@ function paintFloor(ctx: CanvasRenderingContext2D, mapId: string): void {
       }
       ctx.stroke();
     }
-    // 油渍
     ctx.fillStyle = 'rgba(8, 10, 15, 0.5)';
     for (let i = 0; i < 9; i++) {
       const x = hash2(i, 401) * GAME_W, y = hash2(i, 409) * GAME_H;
@@ -275,7 +272,6 @@ function paintFloor(ctx: CanvasRenderingContext2D, mapId: string): void {
       ctx.fill();
     }
   } else if (th.feature === 'lab') {
-    // 实验室发光管线与核心扇区圆环
     ctx.strokeStyle = 'rgba(54, 181, 229, 0.14)';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -292,7 +288,6 @@ function paintFloor(ctx: CanvasRenderingContext2D, mapId: string): void {
         ctx.fillRect(x - 10, y + 6, 20, 3);
       }
     }
-    // 通风格栅
     ctx.strokeStyle = 'rgba(120, 165, 195, 0.16)';
     ctx.lineWidth = 1;
     for (let i = 0; i < 6; i++) {
@@ -304,7 +299,6 @@ function paintFloor(ctx: CanvasRenderingContext2D, mapId: string): void {
       }
     }
   } else {
-    // 天台停机坪标志 + 积水反光
     ctx.strokeStyle = 'rgba(210, 198, 255, 0.08)';
     ctx.lineWidth = 4;
     ctx.beginPath();
@@ -338,7 +332,6 @@ function paintFloor(ctx: CanvasRenderingContext2D, mapId: string): void {
   ctx.lineWidth = 1;
   ctx.strokeRect(14.5, 14.5, GAME_W - 29, GAME_H - 29);
 
-  // 四角战术亮边
   ctx.strokeStyle = th.accent;
   ctx.globalAlpha = 0.32;
   ctx.lineWidth = 2;
@@ -355,7 +348,7 @@ function paintFloor(ctx: CanvasRenderingContext2D, mapId: string): void {
   }
   ctx.globalAlpha = 1;
 
-  // 6) 柔和边缘暗角（把视线自然聚焦到战场中心）
+  // 6) 柔和边缘暗角
   const vig = safeRadialGrad(
     ctx, GAME_W / 2, GAME_H / 2, GAME_H * 0.35, GAME_W / 2, GAME_H / 2, GAME_W * 0.62,
     [[0, 'rgba(0,0,0,0)'], [1, 'rgba(3,5,10,0.46)']],
@@ -370,7 +363,6 @@ function drawTraps(ctx: CanvasRenderingContext2D, arena: Arena, t: number, showR
   const pulse = 0.5 + Math.sin(t * 4.5) * 0.5;
   for (const tr of arena.traps) {
     ctx.save();
-    // 科技流派选持时显示 46px 增幅范围提示
     if (showRadius) {
       ctx.strokeStyle = `rgba(79, 209, 255, ${(0.18 + pulse * 0.16).toFixed(2)})`;
       ctx.lineWidth = 1.2;
@@ -380,7 +372,6 @@ function drawTraps(ctx: CanvasRenderingContext2D, arena: Arena, t: number, showR
       ctx.stroke();
       ctx.setLineDash([]);
     }
-    // 金属底座
     roundRectPath(ctx, tr.x - 14, tr.y - 14, 28, 28, 4);
     ctx.fillStyle = '#1b222e';
     ctx.fill();
@@ -388,7 +379,6 @@ function drawTraps(ctx: CanvasRenderingContext2D, arena: Arena, t: number, showR
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // 内部斜向黄黑警示核心
     ctx.fillStyle = '#2c2918';
     ctx.fillRect(tr.x - 10, tr.y - 10, 20, 20);
     ctx.fillStyle = 'rgba(245, 197, 66, 0.45)';
@@ -396,7 +386,6 @@ function drawTraps(ctx: CanvasRenderingContext2D, arena: Arena, t: number, showR
       ctx.fillRect(tr.x + k - 2, tr.y - 9, 3, 18);
     }
 
-    // 中央脉动能量核
     ctx.globalCompositeOperation = 'lighter';
     ctx.fillStyle = safeRadialGrad(
       ctx, tr.x, tr.y, 1, tr.x, tr.y, 12,
@@ -415,24 +404,20 @@ function drawTraps(ctx: CanvasRenderingContext2D, arena: Arena, t: number, showR
 }
 
 function drawArenaProps(ctx: CanvasRenderingContext2D, arena: Arena, t: number): void {
-  // 路障：带投影的工业强化挡板 + 钢钉 + 损伤进度条
   for (const o of arena.barriers) {
     if (o.hp <= 0) continue;
     const ratio = Math.max(0, Math.min(1, o.hp / o.maxHp));
     ctx.save();
-    // 阴影
     ctx.fillStyle = 'rgba(4, 6, 12, 0.5)';
     roundRectPath(ctx, o.x + 3, o.y + 5, o.w, o.h, 3);
     ctx.fill();
 
-    // 主体木钢结构
     roundRectPath(ctx, o.x, o.y, o.w, o.h, 3);
     ctx.fillStyle = '#57432a';
     ctx.fill();
     ctx.fillStyle = '#755a37';
     ctx.fillRect(o.x + 2, o.y + 2, Math.max(0, o.w - 4), Math.max(0, o.h - 6));
 
-    // 钢制加固筋条
     ctx.fillStyle = '#333b48';
     if (o.w > o.h) {
       for (let x = o.x + 14; x < o.x + o.w - 8; x += 24) ctx.fillRect(x, o.y, 5, o.h);
@@ -440,13 +425,11 @@ function drawArenaProps(ctx: CanvasRenderingContext2D, arena: Arena, t: number):
       for (let y = o.y + 14; y < o.y + o.h - 8; y += 24) ctx.fillRect(o.x, y, o.w, 5);
     }
 
-    // 边框与高光
     ctx.strokeStyle = ratio < 0.4 ? '#d96b43' : '#96764c';
     ctx.lineWidth = 1.5;
     roundRectPath(ctx, o.x + 0.5, o.y + 0.5, o.w - 1, o.h - 1, 3);
     ctx.stroke();
 
-    // 受损裂纹提示 + 迷你耐久条
     if (ratio < 1) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
       ctx.fillRect(o.x + 2, o.y - 7, o.w - 4, 4);
@@ -456,7 +439,6 @@ function drawArenaProps(ctx: CanvasRenderingContext2D, arena: Arena, t: number):
     ctx.restore();
   }
 
-  // 油桶与补给箱（带落地影与油桶红晕）
   const props: ArenaObject[] = [...arena.barrels, ...arena.boxes];
   for (const o of props) {
     if (o.hp <= 0) continue;
@@ -557,17 +539,18 @@ function drawFloatingText(ctx: CanvasRenderingContext2D, world: World): void {
     const lift = progress * 18;
     const alpha = Math.min(1, f.time * 2.5);
     const isHurt = f.text.startsWith('-');
+    const isHeal = f.text.startsWith('+');
     const numeric = Number(f.text);
     const isBig = Number.isFinite(numeric) && numeric >= 35;
 
     ctx.globalAlpha = alpha;
-    ctx.font = isBig || isHurt
+    ctx.font = isBig || isHurt || isHeal
       ? '800 14px "Inter", "PingFang SC", sans-serif'
       : '700 12px "Inter", "PingFang SC", sans-serif';
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(8, 10, 16, 0.9)';
     ctx.strokeText(f.text, f.x, f.y - lift);
-    ctx.fillStyle = isHurt ? '#ff6464' : isBig ? '#ffe066' : '#f4f1de';
+    ctx.fillStyle = isHurt ? '#ff6464' : isHeal ? '#6ef08d' : isBig ? '#ffe066' : '#f4f1de';
     ctx.fillText(f.text, f.x, f.y - lift);
   }
   ctx.restore();
@@ -598,7 +581,6 @@ function drawAtmosphere(
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, GAME_W, GAME_H);
 
-    // 夜晚模式额外补一道朝向准星的柔和手电光锥
     if (arena.weather === 'night' && player) {
       const aim = Math.atan2(mouse.y - py, mouse.x - px);
       ctx.save();
@@ -669,7 +651,6 @@ function drawCrosshair(
   const spread = reloading ? 12 : 8 + Math.sin(t * 4) * 0.6;
 
   ctx.save();
-  // 外环进度（换弹或蓄力）
   if (reloading && def) {
     const total = Math.max(0.1, def.reloadTime * stats.reloadMult);
     const frac = 1 - Math.max(0, Math.min(1, slot!.res.reloading / total));
@@ -685,7 +666,6 @@ function drawCrosshair(
     ctx.beginPath(); ctx.arc(mx, my, 15, -Math.PI / 2, -Math.PI / 2 + TAU * frac); ctx.stroke();
   }
 
-  // 四向准星刻线 + 中心点
   ctx.strokeStyle = 'rgba(0,0,0,0.65)';
   ctx.lineWidth = 3.2;
   drawReticleLines(ctx, mx, my, spread);
@@ -716,12 +696,12 @@ function drawHud(ctx: CanvasRenderingContext2D, inp: RenderInput, player: Entity
     e => !e.dead && e.id !== 1 && !e.tags.includes('deployable'),
   ).length;
   const remaining = aliveZombies + (inp.spawnQueueCount ?? 0);
+  const wm = weatherMeta(run.weather);
 
   // ── 1. 左上角：幸存者状态板（头像 + 血条 + 护盾）
   const px = 14, py = 12, pw = 248, ph = 54;
   drawGlassCard(ctx, px, py, pw, ph, 'rgba(130, 160, 210, 0.25)');
 
-  // 头像框
   const avX = px + 7, avY = py + 7, avS = 40;
   roundRectPath(ctx, avX, avY, avS, avS, 7);
   ctx.fillStyle = '#0c1018';
@@ -740,7 +720,6 @@ function drawHud(ctx: CanvasRenderingContext2D, inp: RenderInput, player: Entity
   roundRectPath(ctx, avX, avY, avS, avS, 7);
   ctx.stroke();
 
-  // 角色名 + 血量文本
   const barX = avX + avS + 10;
   const barW = pw - (barX - px) - 12;
   const hp = Math.max(0, Math.ceil(player?.hp ?? run.hp));
@@ -756,7 +735,6 @@ function drawHud(ctx: CanvasRenderingContext2D, inp: RenderInput, player: Entity
   ctx.fillStyle = hpFrac < 0.3 ? '#ff7675' : '#d5dfef';
   ctx.fillText(`${hp} / ${maxHp}`, barX + barW, py + 19);
 
-  // 血条本体
   roundRectPath(ctx, barX, py + 25, barW, 12, 4);
   ctx.fillStyle = 'rgba(5, 8, 14, 0.88)';
   ctx.fill();
@@ -767,7 +745,6 @@ function drawHud(ctx: CanvasRenderingContext2D, inp: RenderInput, player: Entity
     ctx.fillStyle = 'rgba(255,255,255,0.22)';
     ctx.fillRect(barX + 2, py + 26, Math.max(2, (barW - 4) * hpFrac), 3);
   }
-  // 护盾条（激活时）
   if ((inp.playerShield ?? 0) > 0) {
     const shFrac = Math.min(1, inp.playerShield! / 3);
     ctx.fillStyle = '#4fd1ff';
@@ -781,27 +758,28 @@ function drawHud(ctx: CanvasRenderingContext2D, inp: RenderInput, player: Entity
 
   // ── 2. 顶部中央：Boss 大血条 或 波次进度胶囊
   if (activeBoss) {
-    const bw = 320, bx = (GAME_W - bw) / 2, by = 12;
-    drawGlassCard(ctx, bx, by, bw, 46, 'rgba(239, 83, 80, 0.55)');
+    const bw = 330, bx = (GAME_W - bw) / 2, by = 12;
+    drawGlassCard(ctx, bx, by, bw, 52, 'rgba(239, 83, 80, 0.6)', 'rgba(24, 10, 14, 0.9)');
     const bName = ZOMBIE_BY_ID[activeBoss.kind]?.name ?? 'Boss';
     const bFrac = Math.max(0, Math.min(1, activeBoss.hp / Math.max(1, activeBoss.maxHp)));
     ctx.font = '800 12px "Inter", "PingFang SC", sans-serif';
     ctx.fillStyle = '#ff8a80';
     ctx.textAlign = 'left';
-    ctx.fillText(`☠ ${bName}`, bx + 12, by + 18);
+    ctx.fillText(`☠ BOSS · ${bName} (第 ${run.wave} 波)`, bx + 12, by + 19);
     ctx.textAlign = 'right';
     ctx.fillStyle = '#ffd6d6';
-    ctx.fillText(`${Math.ceil(activeBoss.hp)} / ${Math.ceil(activeBoss.maxHp)}`, bx + bw - 12, by + 18);
-    roundRectPath(ctx, bx + 12, by + 25, bw - 24, 11, 4);
-    ctx.fillStyle = 'rgba(10, 4, 6, 0.9)';
+    ctx.fillText(`${Math.ceil(activeBoss.hp)} / ${Math.ceil(activeBoss.maxHp)}`, bx + bw - 12, by + 19);
+    roundRectPath(ctx, bx + 12, by + 27, bw - 24, 13, 4);
+    ctx.fillStyle = 'rgba(10, 4, 6, 0.92)';
     ctx.fill();
     if (bFrac > 0) {
-      roundRectPath(ctx, bx + 13, by + 26, Math.max(4, (bw - 26) * bFrac), 9, 3);
+      roundRectPath(ctx, bx + 13, by + 28, Math.max(4, (bw - 26) * bFrac), 11, 3);
       ctx.fillStyle = '#e53935';
       ctx.fill();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+      ctx.fillRect(bx + 14, by + 28, Math.max(2, (bw - 28) * bFrac), 3);
     }
   } else {
-    const wm = weatherMeta(run.weather);
     const cw = 276, cx = (GAME_W - cw) / 2, cy = 12;
     drawGlassCard(ctx, cx, cy, cw, 38, 'rgba(130, 160, 210, 0.25)');
     ctx.textAlign = 'left';
@@ -833,9 +811,11 @@ function drawHud(ctx: CanvasRenderingContext2D, inp: RenderInput, player: Entity
 
   ctx.textAlign = 'left';
   ctx.font = '11px "Inter", "PingFang SC", sans-serif';
-  ctx.fillStyle = '#8b9ab5';
-  const preview = run.nextWavePreview.map(zombieLabel).join(' / ') || '—';
-  ctx.fillText(`敌情: ${preview.slice(0, 18)}`, rx + 12, ry + 42);
+  ctx.fillStyle = activeBoss ? wm.color : '#8b9ab5';
+  const preview = activeBoss
+    ? `${wm.icon} ${wm.name} · 剩余 ${remaining}`
+    : `敌情: ${run.nextWavePreview.map(zombieLabel).join(' / ') || '—'}`;
+  ctx.fillText(preview.slice(0, 22), rx + 12, ry + 42);
 
   // ── 4. 底部战术武器坞 + [Q] 消耗品 + 羁绊标签
   drawBottomDock(ctx, run, stats, loadout);
@@ -853,7 +833,6 @@ function drawBottomDock(
   const startX = Math.round((GAME_W - totalW) / 2);
   const y = GAME_H - cardH - 12;
 
-  // 羁绊 & 组合技胶囊（悬浮于武器坞正上方）
   const pills: { text: string; color: string }[] = [];
   for (const b of loadout.setBonuses) {
     if (b.tier > 0) {
@@ -869,7 +848,7 @@ function drawBottomDock(
     ctx.font = '700 11px "Inter", "PingFang SC", sans-serif';
     let px = startX;
     for (const p of pills) {
-      const tw = ctx.measureText(p.text).width + 16;
+      const tw = (ctx.measureText(p.text)?.width ?? p.text.length * 10) + 16;
       drawGlassCard(ctx, px, y - 24, tw, 19, p.color);
       ctx.fillStyle = p.color;
       ctx.textAlign = 'left';
@@ -879,7 +858,6 @@ function drawBottomDock(
     ctx.restore();
   }
 
-  // 三个武器槽位
   for (let i = 0; i < 3; i++) {
     const x = startX + i * (cardW + gap);
     const active = i === run.activeSlot;
@@ -893,7 +871,6 @@ function drawBottomDock(
       active ? 'rgba(24, 33, 52, 0.92)' : 'rgba(12, 16, 25, 0.82)',
     );
 
-    // 顶部流派色条
     if (def) {
       ctx.fillStyle = accent;
       ctx.globalAlpha = active ? 0.95 : 0.4;
@@ -901,7 +878,6 @@ function drawBottomDock(
       ctx.globalAlpha = 1;
     }
 
-    // 快捷键角标 [1][2][3]
     roundRectPath(ctx, x + 7, y + 8, 17, 17, 4);
     ctx.fillStyle = active ? accent : 'rgba(255,255,255,0.08)';
     ctx.fill();
@@ -921,7 +897,6 @@ function drawBottomDock(
       ctx.font = '11px sans-serif';
       ctx.fillText('★'.repeat(s.star), x + cardW - 8, y + 20);
 
-      // 数值标签 + 资源条
       const gauge = resourceGauge(s.res, def, stats);
       ctx.textAlign = 'left';
       ctx.font = '10px "Inter", "PingFang SC", sans-serif';
@@ -946,7 +921,6 @@ function drawBottomDock(
     }
   }
 
-  // [Q] 消耗品快捷卡
   const qx = startX + 3 * (cardW + gap);
   const nextConsId = Object.keys(run.consumables).find(k => (run.consumables[k] ?? 0) > 0);
   const nextCons = nextConsId ? CONSUMABLE_BY_ID[nextConsId] : null;
